@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useIsMobile } from "../hooks/useIsMobile.js";
 import { Card, PageHeader, PrimaryBtn, Badge, Modal } from "../components/UI.jsx";
 import { CATEGORIAS, fmt, fmtFull, iStyle, lStyle } from "../lib/utils.js";
 

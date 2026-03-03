@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { Card, PageHeader, PrimaryBtn, SectionTitle } from "../components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS } from "../lib/utils.js";
+import { useIsMobile } from "../hooks/useIsMobile.js";
 
 const TT = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -16,28 +17,25 @@ const TT = ({ active, payload }) => {
 
 function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos7, umbralVerde, umbralAmarillo }) {
   const alertas = [];
-  const semActual = getSemaforo(saldoActual,    umbralVerde, umbralAmarillo);
+  const semActual = getSemaforo(saldoActual,     umbralVerde, umbralAmarillo);
   const semConf   = getSemaforo(saldoConfirmado, umbralVerde, umbralAmarillo);
   const semProb   = getSemaforo(saldoProbable,   umbralVerde, umbralAmarillo);
 
-  if (semActual === "rojo")
-    alertas.push({ nivel: "rojo",    msg: `🚨 Liquidez crítica — saldo por debajo de ${fmt(umbralAmarillo)}. Acción urgente requerida.` });
-  else if (semActual === "amarillo")
-    alertas.push({ nivel: "amarillo", msg: `⚠ Atención — saldo por debajo de ${fmt(umbralVerde)}. Monitoreá de cerca.` });
-  else
-    alertas.push({ nivel: "verde",    msg: "✓ Liquidez saludable — el saldo tiene buen margen operativo." });
+  if (semActual === "rojo")         alertas.push({ nivel: "rojo",     msg: "Liquidez critica. Accion urgente." });
+  else if (semActual === "amarillo") alertas.push({ nivel: "amarillo", msg: "Atencion: saldo por debajo del umbral verde." });
+  else                               alertas.push({ nivel: "verde",    msg: "Liquidez saludable." });
 
   if (semConf === "rojo" && semActual !== "rojo")
-    alertas.push({ nivel: "rojo",    msg: "🚨 El escenario confirmado proyecta caída a zona crítica." });
+    alertas.push({ nivel: "rojo", msg: "Escenario confirmado proyecta zona critica." });
   else if (semConf === "amarillo" && semActual === "verde")
-    alertas.push({ nivel: "amarillo", msg: "⚠ El escenario confirmado muestra caída del saldo. Revisá egresos seguros." });
+    alertas.push({ nivel: "amarillo", msg: "Escenario confirmado muestra caida del saldo." });
 
   if (semProb === "rojo" && semConf !== "rojo")
-    alertas.push({ nivel: "amarillo", msg: "⚠ Si se materializan los probables, el saldo caerá a zona de riesgo." });
+    alertas.push({ nivel: "amarillo", msg: "Si se materializan los probables, el saldo cae a zona de riesgo." });
 
   if (proximos7.length > 0) {
     const net = proximos7.reduce((a, p) => a + parseFloat(p.monto), 0);
-    alertas.push({ nivel: net < 0 ? "amarillo" : "verde", msg: `${net < 0 ? "⚠" : "✓"} Próximos 7 días: neto ${fmt(net)} (${proximos7.length} mov.)` });
+    alertas.push({ nivel: net < 0 ? "amarillo" : "verde", msg: `Proximos 7 dias: neto ${fmt(net)} (${proximos7.length} mov.)` });
   }
 
   const colors = {
@@ -53,7 +51,7 @@ function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos
         {alertas.map((a, i) => {
           const c = colors[a.nivel];
           return (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 14px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8 }}>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.text, marginTop: 5, flexShrink: 0, boxShadow: `0 0 6px ${c.text}` }} />
               <span style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>{a.msg}</span>
             </div>
@@ -65,27 +63,22 @@ function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos
 }
 
 export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
-  const {
-    transactions, proyecciones, obligacionesMetricas,
-    dineroEstimado, fondosInversion, financialSettings
-  } = data;
-
+  const { transactions, proyecciones, obligacionesMetricas, fondosInversion, financialSettings } = data;
+  const isMobile = useIsMobile();
   const today = new Date().toISOString().slice(0, 10);
 
-  // Umbrales dinámicos con fallback
   const umbralVerde    = parseFloat(financialSettings?.umbral_verde    ?? 1000000);
   const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200000);
 
   const saldoActual   = useMemo(() => transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
   const totalIngresos = useMemo(() => transactions.filter(t => parseFloat(t.monto) > 0).reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
   const totalEgresos  = useMemo(() => transactions.filter(t => parseFloat(t.monto) < 0).reduce((a, t) => a + Math.abs(parseFloat(t.monto)), 0), [transactions]);
-  const totalEstimado = useMemo(() => dineroEstimado.reduce((a, d) => a + parseFloat(d.monto || 0), 0), [dineroEstimado]);
   const totalFondos   = useMemo(() => fondosInversion.reduce((a, f) => a + parseFloat(f.monto || 0), 0), [fondosInversion]);
   const totalOblig    = useMemo(() => parseFloat(obligacionesMetricas?.total_pendiente) || 0, [obligacionesMetricas]);
 
   const semaforo      = getSemaforo(saldoActual, umbralVerde, umbralAmarillo);
   const saldoConOblig = saldoActual - totalOblig;
-  const dineroAFavor  = saldoActual + totalEstimado + totalFondos - totalOblig;
+  const dineroAFavor  = saldoActual + totalFondos - totalOblig;
 
   const futuras = useMemo(() => proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
 
@@ -100,7 +93,11 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
   }, [saldoConfirmado, futuras]);
 
   const diferencia = saldoProbable - saldoConfirmado;
-  const proximos7  = proyecciones.filter(p => { const d = (new Date(p.fecha) - new Date()) / 86400000; return d >= 0 && d <= 7; });
+
+  const proximos7 = proyecciones.filter(p => {
+    const d = (new Date(p.fecha) - new Date()) / 86400000;
+    return d >= 0 && d <= 7;
+  });
 
   const chartData = useMemo(() => {
     const realSorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
@@ -109,9 +106,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
       r += parseFloat(t.monto);
       return { fecha: t.fecha?.slice(5, 10), concepto: t.concepto, saldo: r, futuro: false };
     });
-    const futureSorted = [...futuras]
-      .filter(p => p.escenario === "CONFIRMADO")
-      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    const futureSorted = [...futuras].filter(p => p.escenario === "CONFIRMADO").sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     let f = r;
     const futurePoints = futureSorted.map(p => {
       f += parseFloat(p.monto);
@@ -122,97 +117,78 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
     return [...realPoints, ...todayPoint, ...futurePoints];
   }, [transactions, futuras]);
 
+  // KPI grid: 2 cols on mobile, 4 on desktop
   const kpis1 = [
-    { label: "Dinero a Favor",     value: fmt(dineroAFavor),    color: dineroAFavor >= 0    ? "#4ade80" : "#f87171", sub: "Neto real estimado" },
-    { label: "Liquidez Actual",    value: fmt(saldoActual),     color: SEMAFORO_COLORS[semaforo],                    sub: "Saldo en cuentas" },
-    { label: "Saldo c/ Oblig.",    value: fmt(saldoConOblig),   color: saldoConOblig >= 0   ? "#4ade80" : "#f87171", sub: "Descontando deudas pendientes" },
-    { label: "Futuro Confirmado",  value: fmt(saldoConfirmado), color: saldoConfirmado >= 0 ? "#818cf8" : "#f87171", sub: "Solo mov. seguros" },
+    { label: "Dinero a Favor",     value: fmt(dineroAFavor),    color: dineroAFavor >= 0 ? "#4ade80" : "#f87171",       sub: "Saldo + Fondos - Obligaciones" },
+    { label: "Liquidez Actual",    value: fmt(saldoActual),     color: SEMAFORO_COLORS[semaforo],                        sub: "Saldo en cuentas" },
+    { label: "Saldo c/ Oblig.",    value: fmt(saldoConOblig),   color: saldoConOblig >= 0 ? "#4ade80" : "#f87171",       sub: "Descontando deudas" },
+    { label: "Fut. Confirmado",    value: fmt(saldoConfirmado), color: saldoConfirmado >= 0 ? "#818cf8" : "#f87171",     sub: "Solo mov. seguros" },
+  ];
+  const kpis2 = [
+    { label: "Total Ingresos",     value: fmt(totalIngresos),   color: "#4ade80",  sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} mov.` },
+    { label: "Total Egresos",      value: fmt(totalEgresos),    color: "#f87171",  sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} mov.` },
+    { label: "Obligaciones",       value: totalOblig > 0 ? fmt(totalOblig) : "-", color: "#facc15", sub: `${obligacionesMetricas?.count_pendiente || 0} pendientes` },
+    { label: "Fut. c/ Probables",  value: fmt(saldoProbable),   color: saldoProbable >= 0 ? "#4ade80" : "#f87171", sub: (diferencia >= 0 ? "+" : "") + fmt(diferencia) + " vs conf." },
   ];
 
-  const kpis2 = [
-    { label: "Total Ingresos",     value: fmt(totalIngresos),   color: "#4ade80",  sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} movimientos` },
-    { label: "Total Egresos",      value: fmt(totalEgresos),    color: "#f87171",  sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} movimientos` },
-    {
-      label: "Total Obligaciones",
-      value: totalOblig > 0 ? fmt(totalOblig) : "—",
-      color: "#facc15",
-      sub: totalOblig > 0 ? `${obligacionesMetricas?.count_pendiente || 0} pendientes` : "Sin obligaciones pendientes"
-    },
-    {
-      label: "Futuro c/ Probables",
-      value: fmt(saldoProbable),
-      color: saldoProbable >= 0 ? "#4ade80" : "#f87171",
-      sub: (diferencia >= 0 ? "+" : "") + fmt(diferencia) + " vs confirmado"
-    },
-  ];
+  const kpiGrid = (kpis) => (
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
+      {kpis.map((k, i) => (
+        <Card key={i} style={{ padding: isMobile ? "14px 14px" : undefined }}>
+          <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: isMobile ? 6 : 10 }}>{k.label}</div>
+          <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.value}</div>
+          {!isMobile && <div style={{ fontSize: 11, color: "#334155" }}>{k.sub}</div>}
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
     <div>
       <PageHeader pre="Overview" title="Dashboard" action={<PrimaryBtn onClick={onAdd}>+ Nuevo Movimiento</PrimaryBtn>} />
 
-      {/* KPIs fila 1 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
-        {kpis1.map((k, i) => (
-          <Card key={i}>
-            <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{k.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: "#334155" }}>{k.sub}</div>
-          </Card>
-        ))}
-      </div>
+      {/* Mobile: show add button */}
+      {isMobile && (
+        <button onClick={onAdd} style={{ width: "100%", background: "#f8fafc", color: "#060a10", border: "none", padding: "13px", borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 700, marginBottom: 16, WebkitTapHighlightColor: "transparent" }}>
+          + Nuevo Movimiento
+        </button>
+      )}
 
-      {/* KPIs fila 2 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
-        {kpis2.map((k, i) => (
-          <Card key={i}>
-            <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{k.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace" }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: "#334155" }}>{k.sub}</div>
-          </Card>
-        ))}
-      </div>
+      {kpiGrid(kpis1)}
+      {kpiGrid(kpis2)}
 
-      <AlertasCashflow
-        saldoActual={saldoActual}
-        saldoConfirmado={saldoConfirmado}
-        saldoProbable={saldoProbable}
-        proximos7={proximos7}
-        umbralVerde={umbralVerde}
-        umbralAmarillo={umbralAmarillo}
-      />
+      <AlertasCashflow saldoActual={saldoActual} saldoConfirmado={saldoConfirmado} saldoProbable={saldoProbable} proximos7={proximos7} umbralVerde={umbralVerde} umbralAmarillo={umbralAmarillo} />
 
-      {/* Gráfico */}
+      {/* Grafico */}
       <Card style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <SectionTitle>Evolución + Escenario Confirmado</SectionTitle>
-          <div style={{ display: "flex", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: "#e2e8f0" }} />
-              <span style={{ fontSize: 11, color: "#64748b" }}>Real</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isMobile ? 12 : 16, flexWrap: "wrap", gap: 8 }}>
+          <SectionTitle>Evolucion + Escenario Confirmado</SectionTitle>
+          {!isMobile && (
+            <div style={{ display: "flex", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 2, background: "#e2e8f0" }} />
+                <span style={{ fontSize: 11, color: "#64748b" }}>Real</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 2, background: "#818cf8" }} />
+                <span style={{ fontSize: 11, color: "#64748b" }}>Confirmado</span>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 20, height: 2, background: "#818cf8" }} />
-              <span style={{ fontSize: 11, color: "#64748b" }}>Confirmado</span>
-            </div>
-          </div>
+          )}
         </div>
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="sgReal" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="#e2e8f0" stopOpacity={0.12} />
                 <stop offset="95%" stopColor="#e2e8f0" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="sgFut" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.1} />
-                <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-              </linearGradient>
             </defs>
             <CartesianGrid stroke="#1a2236" strokeDasharray="3 3" />
-            <XAxis dataKey="fecha" tick={{ fill: "#475569", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "#475569", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000000).toFixed(1)}M`} />
+            <XAxis dataKey="fecha" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} interval={isMobile ? "preserveStartEnd" : 0} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000000).toFixed(1)}M`} width={48} />
             <Tooltip content={<TT />} />
-            <ReferenceLine x="hoy" stroke="#475569" strokeDasharray="4 4" label={{ value: "hoy", fill: "#475569", fontSize: 10 }} />
+            <ReferenceLine x="hoy" stroke="#475569" strokeDasharray="4 4" />
             <Area type="monotone" dataKey="saldo" stroke="#e2e8f0" strokeWidth={2} fill="url(#sgReal)"
               dot={(props) => {
                 if (props.payload?.futuro) return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill="#818cf8" stroke="none" />;
@@ -224,46 +200,40 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </ResponsiveContainer>
       </Card>
 
-      {/* Próximos escenarios */}
+      {/* Proximos Escenarios */}
       {proyecciones.length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <SectionTitle>Próximos Escenarios</SectionTitle>
-            <button onClick={onGoEscenarios} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#334155"; e.currentTarget.style.color = "#94a3b8"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e293b";  e.currentTarget.style.color = "#64748b"; }}>
-              Ver todos →
+            <SectionTitle>Proximos Escenarios</SectionTitle>
+            <button onClick={onGoEscenarios}
+              style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
+              Ver todos
             </button>
           </div>
           {[...proyecciones]
             .filter(p => p.fecha?.slice(0, 10) >= today)
             .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-            .slice(0, 5)
+            .slice(0, isMobile ? 3 : 5)
             .map((p, i, arr) => {
               const isConf = p.escenario === "CONFIRMADO";
               return (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: parseFloat(p.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                      {parseFloat(p.monto) > 0 ? "↑" : "↓"}
+                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: parseFloat(p.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
+                      {parseFloat(p.monto) > 0 ? "+" : "-"}
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0" }}>{p.concepto}</div>
-                      <div style={{ fontSize: 11, color: "#475569" }}>
-                        {p.categoria} · {p.fecha?.slice(0, 10)}
-                        <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600,
-                          background: isConf ? "rgba(99,102,241,0.12)" : "rgba(250,204,21,0.1)",
-                          color: isConf ? "#818cf8" : "#facc15" }}>
-                          {isConf ? "Confirmado" : "Probable"}
-                        </span>
-                      </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 260 }}>{p.concepto}</div>
+                      <div style={{ fontSize: 11, color: "#475569" }}>{p.fecha?.slice(0, 10)}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: parseFloat(p.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace" }}>
                       {parseFloat(p.monto) > 0 ? "+" : ""}{fmt(p.monto)}
                     </div>
-                    <div style={{ fontSize: 10, color: "#334155" }}>{isConf ? "confirmado" : "probable"}</div>
+                    <div style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isConf ? "rgba(99,102,241,0.12)" : "rgba(250,204,21,0.1)", color: isConf ? "#818cf8" : "#facc15", fontWeight: 600 }}>
+                      {isConf ? "Conf." : "Prob."}
+                    </div>
                   </div>
                 </div>
               );
@@ -271,21 +241,21 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </Card>
       )}
 
-      {/* Últimos movimientos */}
+      {/* Ultimos Movimientos */}
       <Card>
-        <SectionTitle>Últimos Movimientos</SectionTitle>
-        {[...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5).map((t, i, arr) => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: parseFloat(t.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
-                {parseFloat(t.monto) > 0 ? "↑" : "↓"}
+        <SectionTitle>Ultimos Movimientos</SectionTitle>
+        {[...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, isMobile ? 4 : 5).map((t, i, arr) => (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: parseFloat(t.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
+                {parseFloat(t.monto) > 0 ? "+" : "-"}
               </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0" }}>{t.concepto}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 260 }}>{t.concepto}</div>
                 <div style={{ fontSize: 11, color: "#475569" }}>{t.categoria} · {t.fecha?.slice(0, 10)}</div>
               </div>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: parseFloat(t.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: parseFloat(t.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace", flexShrink: 0 }}>
               {parseFloat(t.monto) > 0 ? "+" : ""}{fmt(t.monto)}
             </div>
           </div>

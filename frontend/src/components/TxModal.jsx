@@ -47,15 +47,15 @@ export default function TxModal({ tx, cuentas, onSave, onClose }) {
     <Modal title={tx ? "Editar Movimiento" : "Nuevo Movimiento"} onClose={onClose}>
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Fecha</label>
-        <input type="date" value={form.fecha} onChange={set("fecha")} style={iStyle} />
+        <input type="date" value={form.fecha} onChange={set("fecha")} style={{ ...iStyle, fontSize: 16 }} />
       </div>
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Concepto</label>
-        <input type="text" value={form.concepto} onChange={set("concepto")} placeholder="Ej: Pago proveedor, Venta..." style={iStyle} />
+        <input type="text" value={form.concepto} onChange={set("concepto")} placeholder="Ej: Pago proveedor, Venta..." style={{ ...iStyle, fontSize: 16 }} />
       </div>
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Monto ($)</label>
-        <input type="number" value={form.monto} onChange={set("monto")} placeholder="0" style={iStyle} />
+        <input type="number" value={form.monto} onChange={set("monto")} placeholder="0" style={{ ...iStyle, fontSize: 16 }} />
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -74,14 +74,14 @@ export default function TxModal({ tx, cuentas, onSave, onClose }) {
 
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Categoría</label>
-        <select value={form.categoria} onChange={set("categoria")} style={iStyle}>
+        <select value={form.categoria} onChange={set("categoria")} style={{ ...iStyle, fontSize: 16 }}>
           {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
         </select>
       </div>
 
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Cuenta</label>
-        <select value={form.cuenta} onChange={set("cuenta")} style={iStyle}>
+        <select value={form.cuenta} onChange={set("cuenta")} style={{ ...iStyle, fontSize: 16 }}>
           {cuentas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
         </select>
       </div>

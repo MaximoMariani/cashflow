@@ -86,9 +86,7 @@ export function useData() {
   const saveConfig = async (data) => { const cfg = await api.updateConfig(data); setDashConfig(cfg); return cfg; };
 
   // ── Dinero estimado ───────────────────────────────────────────────────────
-  const addEstimado    = async (data)      => { const item = await api.createEstimado(data); setDineroEstimado(prev => [...prev, item]); return item; };
-  const updateEstimado = async (id, data)  => { const item = await api.updateEstimado(id, data); setDineroEstimado(prev => prev.map(x => x.id === id ? item : x)); return item; };
-  const deleteEstimado = async (id)        => { await api.deleteEstimado(id); setDineroEstimado(prev => prev.filter(x => x.id !== id)); };
+  // dineroEstimado kept in DB (non-destructive). Not exposed in UI. Cobros now live in Escenarios.
 
   // ── Fondos ────────────────────────────────────────────────────────────────
   const addFondo    = async (data)      => { const item = await api.createFondo(data); setFondosInversion(prev => [...prev, item]); return item; };
@@ -112,7 +110,6 @@ export function useData() {
     addObligacion, updateObligacion, deleteObligacion, pagarObligacion,
     addCuenta, deleteCuenta,
     saveConfig,
-    addEstimado, updateEstimado, deleteEstimado,
     addFondo, updateFondo, deleteFondo,
     saveFinancialSettings,
   };

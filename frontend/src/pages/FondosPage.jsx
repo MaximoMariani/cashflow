@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useIsMobile } from "../hooks/useIsMobile.js";
 import { Card, PageHeader, SectionTitle } from "../components/UI.jsx";
 import { fmt, iStyle } from "../lib/utils.js";
 
@@ -36,12 +37,11 @@ function ListEditor({ items, onAdd, onUpdate, onDelete, fieldKey, placeholder, c
 }
 
 export default function FondosPage({ data }) {
-  const { dineroEstimado, fondosInversion, dashConfig, addEstimado, updateEstimado, deleteEstimado, addFondo, updateFondo, deleteFondo, saveConfig } = data;
+  const { fondosInversion, dashConfig, addFondo, updateFondo, deleteFondo, saveConfig } = data;
   const [saldoRespaldo, setSaldoRespaldo] = useState(dashConfig?.saldo_respaldo || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const totalEstimado = dineroEstimado.reduce((a, d) => a + (parseFloat(d.monto) || 0), 0);
   const totalFondos = fondosInversion.reduce((a, f) => a + (parseFloat(f.monto) || 0), 0);
 
   const saveSaldoRespaldo = async () => {
@@ -54,11 +54,10 @@ export default function FondosPage({ data }) {
 
   return (
     <div>
-      <PageHeader pre="Activos" title="Fondos & Cobros" />
+      <PageHeader pre="Activos" title="Fondos" />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
         {[
-          { label: "Estimado por Cobrar", value: fmt(totalEstimado), color: "#4ade80" },
           { label: "Fondos de Inversión", value: fmt(totalFondos), color: "#94a3b8" },
           { label: "Saldo de Respaldo", value: saldoRespaldo ? fmt(parseFloat(saldoRespaldo)) : "—", color: "#64748b" },
         ].map((k, i) => (
@@ -69,20 +68,6 @@ export default function FondosPage({ data }) {
         ))}
       </div>
 
-      {/* Dinero Estimado */}
-      <Card style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <SectionTitle>Dinero Estimado por Cobrar</SectionTitle>
-          <button onClick={() => addEstimado({ concepto: "", monto: 0 })}
-            style={{ background: "#1e293b", border: "1px solid #334155", color: "#94a3b8", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
-            + Agregar
-          </button>
-        </div>
-        {dineroEstimado.length === 0
-          ? <p style={{ color: "#334155", fontSize: 13 }}>No hay cobros pendientes registrados.</p>
-          : <ListEditor items={dineroEstimado} onAdd={() => addEstimado({ concepto: "", monto: 0 })} onUpdate={updateEstimado} onDelete={deleteEstimado} fieldKey="concepto" placeholder="Concepto (ej: Cobro cliente X)" color="#4ade80" />
-        }
-      </Card>
 
       {/* Fondos Inversión */}
       <Card style={{ marginBottom: 14 }}>
