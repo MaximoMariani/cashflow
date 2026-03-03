@@ -5,11 +5,12 @@ const path = require("path");
 const fs = require("fs");
 const { initDB } = require("./db");
 
-const transactionsRouter = require("./routes/transactions");
-const cuentasRouter = require("./routes/cuentas");
-const dashboardRouter = require("./routes/dashboard");
-const proyeccionesRouter = require("./routes/proyecciones");
-const obligacionesRouter = require("./routes/obligaciones");
+const transactionsRouter  = require("./routes/transactions");
+const cuentasRouter       = require("./routes/cuentas");
+const dashboardRouter     = require("./routes/dashboard");
+const proyeccionesRouter  = require("./routes/proyecciones");
+const obligacionesRouter  = require("./routes/obligaciones");
+const settingsRouter      = require("./routes/settings");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -28,11 +29,12 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/transactions", transactionsRouter);
-app.use("/api/cuentas", cuentasRouter);
-app.use("/api/dashboard", dashboardRouter);
-app.use("/api/proyecciones", proyeccionesRouter);
-app.use("/api/obligaciones", obligacionesRouter);
+app.use("/api/transactions",  transactionsRouter);
+app.use("/api/cuentas",       cuentasRouter);
+app.use("/api/dashboard",     dashboardRouter);
+app.use("/api/proyecciones",  proyeccionesRouter);
+app.use("/api/obligaciones",  obligacionesRouter);
+app.use("/api/settings",      settingsRouter);
 
 const possibleDistPaths = [
   path.join(__dirname, "../../frontend/dist"),
@@ -40,8 +42,13 @@ const possibleDistPaths = [
   path.join(process.cwd(), "frontend/dist"),
 ];
 const distPath = possibleDistPaths.find(p => fs.existsSync(p));
-if (isProd && distPath) { console.log("📦 Serving frontend from:", distPath); app.use(express.static(distPath)); app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html"))); }
-else if (isProd) { console.warn("⚠️  Frontend dist not found. Checked:", possibleDistPaths); }
+if (isProd && distPath) {
+  console.log("📦 Serving frontend from:", distPath);
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+} else if (isProd) {
+  console.warn("⚠️  Frontend dist not found. Checked:", possibleDistPaths);
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Server listening on port ${PORT}`);
@@ -49,5 +56,7 @@ app.listen(PORT, "0.0.0.0", () => {
     dbReady = false; dbError = new Error("DATABASE_URL is not set.");
     console.warn("⚠️  DATABASE_URL is not set."); return;
   }
-  initDB().then(() => { dbReady = true; dbError = null; }).catch(err => { dbReady = false; dbError = err; console.error("❌ DB init failed:", err); });
+  initDB()
+    .then(() => { dbReady = true; dbError = null; })
+    .catch(err => { dbReady = false; dbError = err; console.error("❌ DB init failed:", err); });
 });

@@ -12,7 +12,7 @@ export const fmt = (n) => {
   const num = parseFloat(n);
   const abs = Math.abs(num);
   if (abs >= 1000000) return `$${(num / 1000000).toFixed(2)}M`;
-  if (abs >= 1000) return `$${(num / 1000).toFixed(0)}K`;
+  if (abs >= 1000)    return `$${(num / 1000).toFixed(0)}K`;
   return `$${num.toLocaleString("es-AR")}`;
 };
 
@@ -21,7 +21,14 @@ export const fmtFull = (n) => {
   return `$${Math.abs(num).toLocaleString("es-AR")}`;
 };
 
-export const getSemaforo = (s) => s > 1000000 ? "verde" : s > 200000 ? "amarillo" : "rojo";
+// umbralVerde   default 1_000_000
+// umbralAmarillo default   200_000
+// Firma retrocompatible: getSemaforo(saldo) sigue funcionando igual.
+export const getSemaforo = (saldo, umbralVerde = 1000000, umbralAmarillo = 200000) => {
+  if (saldo >= umbralVerde)   return "verde";
+  if (saldo >= umbralAmarillo) return "amarillo";
+  return "rojo";
+};
 
 export const iStyle = {
   width: "100%", background: "#111827", border: "1px solid #1e293b",

@@ -14,20 +14,23 @@ const TT = ({ active, payload }) => {
   );
 };
 
-function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos7, proximos30 }) {
+function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos7, umbralVerde, umbralAmarillo }) {
   const alertas = [];
-  const semActual = getSemaforo(saldoActual);
-  const semConf   = getSemaforo(saldoConfirmado);
-  const semProb   = getSemaforo(saldoProbable);
+  const semActual = getSemaforo(saldoActual,    umbralVerde, umbralAmarillo);
+  const semConf   = getSemaforo(saldoConfirmado, umbralVerde, umbralAmarillo);
+  const semProb   = getSemaforo(saldoProbable,   umbralVerde, umbralAmarillo);
 
-  if (semActual === "rojo")        alertas.push({ nivel: "rojo",    msg: "🚨 Liquidez crítica — el saldo actual está por debajo de $200.000. Acción urgente requerida." });
-  else if (semActual === "amarillo") alertas.push({ nivel: "amarillo", msg: "⚠ Atención — el saldo actual está por debajo de $1.000.000. Monitoreá de cerca." });
-  else                               alertas.push({ nivel: "verde",    msg: "✓ Liquidez saludable — el saldo actual tiene buen margen operativo." });
+  if (semActual === "rojo")
+    alertas.push({ nivel: "rojo",    msg: `🚨 Liquidez crítica — saldo por debajo de ${fmt(umbralAmarillo)}. Acción urgente requerida.` });
+  else if (semActual === "amarillo")
+    alertas.push({ nivel: "amarillo", msg: `⚠ Atención — saldo por debajo de ${fmt(umbralVerde)}. Monitoreá de cerca.` });
+  else
+    alertas.push({ nivel: "verde",    msg: "✓ Liquidez saludable — el saldo tiene buen margen operativo." });
 
   if (semConf === "rojo" && semActual !== "rojo")
-    alertas.push({ nivel: "rojo",    msg: "🚨 El escenario confirmado muestra que el saldo caerá a zona crítica." });
+    alertas.push({ nivel: "rojo",    msg: "🚨 El escenario confirmado proyecta caída a zona crítica." });
   else if (semConf === "amarillo" && semActual === "verde")
-    alertas.push({ nivel: "amarillo", msg: "⚠ El escenario confirmado muestra una caída del saldo. Revisá los egresos seguros." });
+    alertas.push({ nivel: "amarillo", msg: "⚠ El escenario confirmado muestra caída del saldo. Revisá egresos seguros." });
 
   if (semProb === "rojo" && semConf !== "rojo")
     alertas.push({ nivel: "amarillo", msg: "⚠ Si se materializan los probables, el saldo caerá a zona de riesgo." });
@@ -62,22 +65,28 @@ function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos
 }
 
 export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
-  const { transactions, proyecciones, obligacionesMetricas, dineroEstimado, fondosInversion } = data;
+  const {
+    transactions, proyecciones, obligacionesMetricas,
+    dineroEstimado, fondosInversion, financialSettings
+  } = data;
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const saldoActual    = useMemo(() => transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
-  const totalIngresos  = useMemo(() => transactions.filter(t => parseFloat(t.monto) > 0).reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
-  const totalEgresos   = useMemo(() => transactions.filter(t => parseFloat(t.monto) < 0).reduce((a, t) => a + Math.abs(parseFloat(t.monto)), 0), [transactions]);
-  const totalEstimado  = useMemo(() => dineroEstimado.reduce((a, d) => a + parseFloat(d.monto || 0), 0), [dineroEstimado]);
-  const totalFondos    = useMemo(() => fondosInversion.reduce((a, f) => a + parseFloat(f.monto || 0), 0), [fondosInversion]);
-  const totalOblig     = useMemo(() => parseFloat(obligacionesMetricas?.total_pendiente) || 0, [obligacionesMetricas]);
+  // Umbrales dinámicos con fallback
+  const umbralVerde    = parseFloat(financialSettings?.umbral_verde    ?? 1000000);
+  const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200000);
 
-  const semaforo       = getSemaforo(saldoActual);
-  const saldoConOblig  = saldoActual - totalOblig;
-  const dineroAFavor   = saldoActual + totalEstimado + totalFondos - totalOblig;
+  const saldoActual   = useMemo(() => transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
+  const totalIngresos = useMemo(() => transactions.filter(t => parseFloat(t.monto) > 0).reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
+  const totalEgresos  = useMemo(() => transactions.filter(t => parseFloat(t.monto) < 0).reduce((a, t) => a + Math.abs(parseFloat(t.monto)), 0), [transactions]);
+  const totalEstimado = useMemo(() => dineroEstimado.reduce((a, d) => a + parseFloat(d.monto || 0), 0), [dineroEstimado]);
+  const totalFondos   = useMemo(() => fondosInversion.reduce((a, f) => a + parseFloat(f.monto || 0), 0), [fondosInversion]);
+  const totalOblig    = useMemo(() => parseFloat(obligacionesMetricas?.total_pendiente) || 0, [obligacionesMetricas]);
 
-  // Escenarios futuros
+  const semaforo      = getSemaforo(saldoActual, umbralVerde, umbralAmarillo);
+  const saldoConOblig = saldoActual - totalOblig;
+  const dineroAFavor  = saldoActual + totalEstimado + totalFondos - totalOblig;
+
   const futuras = useMemo(() => proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
 
   const saldoConfirmado = useMemo(() => {
@@ -91,11 +100,8 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
   }, [saldoConfirmado, futuras]);
 
   const diferencia = saldoProbable - saldoConfirmado;
-
   const proximos7  = proyecciones.filter(p => { const d = (new Date(p.fecha) - new Date()) / 86400000; return d >= 0 && d <= 7; });
-  const proximos30 = proyecciones.filter(p => { const d = (new Date(p.fecha) - new Date()) / 86400000; return d >= 0 && d <= 30; });
 
-  // Gráfico: real + escenario confirmado
   const chartData = useMemo(() => {
     const realSorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     let r = 0;
@@ -117,19 +123,27 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
   }, [transactions, futuras]);
 
   const kpis1 = [
-    { label: "Dinero a Favor",      value: fmt(dineroAFavor),     color: dineroAFavor >= 0     ? "#4ade80" : "#f87171", sub: "Neto real estimado" },
-    { label: "Liquidez Actual",     value: fmt(saldoActual),      color: SEMAFORO_COLORS[semaforo],                     sub: "Saldo en cuentas" },
-    { label: "Saldo c/ Oblig.",     value: fmt(saldoConOblig),    color: saldoConOblig >= 0    ? "#4ade80" : "#f87171", sub: "Descontando deudas pendientes" },
-    { label: "Futuro Confirmado",   value: fmt(saldoConfirmado),  color: saldoConfirmado >= 0  ? "#818cf8" : "#f87171", sub: "Solo mov. seguros" },
+    { label: "Dinero a Favor",     value: fmt(dineroAFavor),    color: dineroAFavor >= 0    ? "#4ade80" : "#f87171", sub: "Neto real estimado" },
+    { label: "Liquidez Actual",    value: fmt(saldoActual),     color: SEMAFORO_COLORS[semaforo],                    sub: "Saldo en cuentas" },
+    { label: "Saldo c/ Oblig.",    value: fmt(saldoConOblig),   color: saldoConOblig >= 0   ? "#4ade80" : "#f87171", sub: "Descontando deudas pendientes" },
+    { label: "Futuro Confirmado",  value: fmt(saldoConfirmado), color: saldoConfirmado >= 0 ? "#818cf8" : "#f87171", sub: "Solo mov. seguros" },
   ];
 
   const kpis2 = [
-    { label: "Total Ingresos",      value: fmt(totalIngresos),    color: "#4ade80",  sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} movimientos` },
-    { label: "Total Egresos",       value: fmt(totalEgresos),     color: "#f87171",  sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} movimientos` },
-    { label: "Total Obligaciones",  value: totalOblig > 0 ? fmt(totalOblig) : "—",  color: "#facc15",
-      sub: totalOblig > 0 ? `${obligacionesMetricas?.count_pendiente || 0} pendientes` : "Sin obligaciones pendientes" },
-    { label: "Futuro c/ Probables", value: fmt(saldoProbable),    color: saldoProbable >= 0 ? "#4ade80" : "#f87171",
-      sub: (diferencia >= 0 ? "+" : "") + fmt(diferencia) + " vs confirmado" },
+    { label: "Total Ingresos",     value: fmt(totalIngresos),   color: "#4ade80",  sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} movimientos` },
+    { label: "Total Egresos",      value: fmt(totalEgresos),    color: "#f87171",  sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} movimientos` },
+    {
+      label: "Total Obligaciones",
+      value: totalOblig > 0 ? fmt(totalOblig) : "—",
+      color: "#facc15",
+      sub: totalOblig > 0 ? `${obligacionesMetricas?.count_pendiente || 0} pendientes` : "Sin obligaciones pendientes"
+    },
+    {
+      label: "Futuro c/ Probables",
+      value: fmt(saldoProbable),
+      color: saldoProbable >= 0 ? "#4ade80" : "#f87171",
+      sub: (diferencia >= 0 ? "+" : "") + fmt(diferencia) + " vs confirmado"
+    },
   ];
 
   return (
@@ -158,7 +172,14 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         ))}
       </div>
 
-      <AlertasCashflow saldoActual={saldoActual} saldoConfirmado={saldoConfirmado} saldoProbable={saldoProbable} proximos7={proximos7} proximos30={proximos30} />
+      <AlertasCashflow
+        saldoActual={saldoActual}
+        saldoConfirmado={saldoConfirmado}
+        saldoProbable={saldoProbable}
+        proximos7={proximos7}
+        umbralVerde={umbralVerde}
+        umbralAmarillo={umbralAmarillo}
+      />
 
       {/* Gráfico */}
       <Card style={{ marginBottom: 14 }}>
@@ -203,7 +224,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </ResponsiveContainer>
       </Card>
 
-      {/* Próximos escenarios en dashboard */}
+      {/* Próximos escenarios */}
       {proyecciones.length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>

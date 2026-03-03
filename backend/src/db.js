@@ -8,6 +8,7 @@ const pool = new Pool({
 async function initDB() {
   const client = await pool.connect();
   try {
+    // ── Tablas base ──────────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS cuentas (
         id SERIAL PRIMARY KEY,
@@ -72,7 +73,7 @@ async function initDB() {
       );
     `);
 
-    // Migración idempotente: agrega columna escenario si no existe
+    // ── Migración: columna escenario en proyecciones ──────────────────────
     await client.query(`
       DO $$
       BEGIN
@@ -89,6 +90,26 @@ async function initDB() {
       END$$;
     `);
 
+    // ── Migración: tabla financial_settings ───────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS financial_settings (
+        id VARCHAR(50) PRIMARY KEY,
+        user_id VARCHAR(100) NOT NULL DEFAULT 'default',
+        umbral_verde NUMERIC(15,2) NOT NULL DEFAULT 1000000,
+        umbral_amarillo NUMERIC(15,2) NOT NULL DEFAULT 200000,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    // Inserta row por defecto si no existe
+    await client.query(`
+      INSERT INTO financial_settings (id, user_id, umbral_verde, umbral_amarillo)
+      VALUES ('default', 'default', 1000000, 200000)
+      ON CONFLICT (id) DO NOTHING;
+    `);
+
+    // ── Seeds ─────────────────────────────────────────────────────────────
     const { rowCount } = await client.query("SELECT 1 FROM cuentas LIMIT 1");
     if (rowCount === 0) {
       await client.query(`INSERT INTO cuentas (nombre) VALUES ('MercadoPago Manuel') ON CONFLICT DO NOTHING`);
