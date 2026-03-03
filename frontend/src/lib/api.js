@@ -43,4 +43,14 @@ export const api = {
   createProyeccion: (data) => req("POST", "/proyecciones", data),
   updateProyeccion: (id, data) => req("PUT", `/proyecciones/${id}`, data),
   deleteProyeccion: (id) => req("DELETE", `/proyecciones/${id}`),
+  // Obligaciones
+  getObligaciones: (params) => {
+    const qs = params ? "?" + new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString() : "";
+    return req("GET", `/obligaciones${qs}`);
+  },
+  getObligacionesMetricas: () => req("GET", "/obligaciones/metricas"),
+  createObligacion: (data) => req("POST", "/obligaciones", data),
+  updateObligacion: (id, data) => req("PUT", `/obligaciones/${id}`, data),
+  deleteObligacion: (id) => req("DELETE", `/obligaciones/${id}`),
+  pagarObligacion: (id, fecha_pago) => req("POST", `/obligaciones/${id}/pagar`, { fecha_pago }),
 };

@@ -62,6 +62,20 @@ async function initDB() {
         monto NUMERIC(15,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS obligaciones (
+        id SERIAL PRIMARY KEY,
+        fecha_vencimiento DATE NOT NULL,
+        concepto VARCHAR(255) NOT NULL,
+        categoria VARCHAR(100) NOT NULL DEFAULT 'Otros',
+        cuenta VARCHAR(100) NOT NULL,
+        monto NUMERIC(15,2) NOT NULL CHECK (monto > 0),
+        notas TEXT DEFAULT '',
+        estado VARCHAR(10) NOT NULL DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE','PAGADA')),
+        fecha_pago DATE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
 
     const { rowCount } = await client.query("SELECT 1 FROM cuentas LIMIT 1");

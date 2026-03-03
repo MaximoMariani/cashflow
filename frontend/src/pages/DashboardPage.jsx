@@ -19,17 +19,17 @@ function AlertasCashflow({ saldoActual, saldoProyectado, proximos7, proximos30 }
   const semActual = getSemaforo(saldoActual);
   const semProy = getSemaforo(saldoProyectado);
 
-  if (semActual === "rojo") alertas.push({ nivel: "rojo", msg: "🚨 Liquidez crítica — el saldo actual está por debajo de $200.000. Acción urgente requerida." });
-  else if (semActual === "amarillo") alertas.push({ nivel: "amarillo", msg: "⚠ Atención — el saldo actual está por debajo de $1.000.000. Monitoreá de cerca." });
-  else alertas.push({ nivel: "verde", msg: "✓ Liquidez saludable — el saldo actual tiene buen margen operativo." });
+  if (semActual === "rojo") alertas.push({ nivel: "rojo", msg: "Liquidez crítica — el saldo actual está por debajo de $200.000. Acción urgente requerida." });
+  else if (semActual === "amarillo") alertas.push({ nivel: "amarillo", msg: "Atención — el saldo actual está por debajo de $1.000.000. Monitoreá de cerca." });
+  else alertas.push({ nivel: "verde", msg: "Liquidez saludable — el saldo actual tiene buen margen operativo." });
 
-  if (semProy === "rojo" && semActual !== "rojo") alertas.push({ nivel: "rojo", msg: "🚨 Las proyecciones muestran que el saldo caerá a zona crítica. Revisá los egresos futuros." });
-  else if (semProy === "amarillo" && semActual === "verde") alertas.push({ nivel: "amarillo", msg: "⚠ Las proyecciones muestran una caída del saldo. Considerá postergar algunos egresos." });
+  if (semProy === "rojo" && semActual !== "rojo") alertas.push({ nivel: "rojo", msg: "Las proyecciones muestran que el saldo caerá a zona crítica. Revisá los egresos futuros." });
+  else if (semProy === "amarillo" && semActual === "verde") alertas.push({ nivel: "amarillo", msg: "Las proyecciones muestran una caída del saldo. Considerá postergar algunos egresos." });
 
   if (proximos7.length > 0) {
     const netP7 = proximos7.reduce((a, p) => a + parseFloat(p.monto), 0);
-    if (netP7 < 0) alertas.push({ nivel: "amarillo", msg: `⚠ En los próximos 7 días hay un neto proyectado negativo de ${fmt(netP7)}.` });
-    else alertas.push({ nivel: "verde", msg: `✓ Los próximos 7 días tienen un neto proyectado positivo de ${fmt(netP7)}.` });
+    if (netP7 < 0) alertas.push({ nivel: "amarillo", msg: `En los próximos 7 días hay un neto proyectado negativo de ${fmt(netP7)}.` });
+    else alertas.push({ nivel: "verde", msg: `Los próximos 7 días tienen un neto proyectado positivo de ${fmt(netP7)}.` });
   }
 
   if (proximos30.length > 0) {
@@ -58,7 +58,8 @@ function AlertasCashflow({ saldoActual, saldoProyectado, proximos7, proximos30 }
 }
 
 export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
-  const { transactions, proyecciones, dashConfig, dineroEstimado, fondosInversion } = data;
+  // CAMBIO: ahora usamos obligacionesMetricas en lugar de dashConfig para las métricas de obligaciones
+  const { transactions, proyecciones, obligacionesMetricas, dashConfig, dineroEstimado, fondosInversion } = data;
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -67,10 +68,9 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
   const totalEgresos = useMemo(() => transactions.filter(t => parseFloat(t.monto) < 0).reduce((a, t) => a + Math.abs(parseFloat(t.monto)), 0), [transactions]);
   const totalEstimado = useMemo(() => dineroEstimado.reduce((a, d) => a + parseFloat(d.monto || 0), 0), [dineroEstimado]);
   const totalFondos = useMemo(() => fondosInversion.reduce((a, f) => a + parseFloat(f.monto || 0), 0), [fondosInversion]);
-  const totalOblig = useMemo(() =>
-    (parseFloat(dashConfig?.proveedores) || 0) + (parseFloat(dashConfig?.talleres) || 0) +
-    (parseFloat(dashConfig?.sueldos_pendientes) || 0) + (parseFloat(dashConfig?.oblig_oficinas) || 0),
-    [dashConfig]);
+
+  // CAMBIO: totalOblig ahora viene de obligacionesMetricas (suma real de PENDIENTES en DB)
+  const totalOblig = useMemo(() => parseFloat(obligacionesMetricas?.total_pendiente) || 0, [obligacionesMetricas]);
 
   const saldoConOblig = saldoActual - totalOblig;
   const dineroAFavor = saldoActual + totalEstimado + totalFondos - totalOblig;
@@ -87,7 +87,6 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
     return diff >= 0 && diff <= 30;
   });
 
-  // Combined chart: real history + future projections
   const chartData = useMemo(() => {
     const realSorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     let r = 0;
@@ -95,45 +94,43 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
       r += parseFloat(t.monto);
       return { fecha: t.fecha?.slice(5, 10), concepto: t.concepto, saldo: r, futuro: false };
     });
-
     const futureSorted = [...proyecciones]
       .filter(p => p.fecha?.slice(0, 10) >= today)
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-
     let f = r;
     const futurePoints = futureSorted.map(p => {
       f += parseFloat(p.monto);
       return { fecha: p.fecha?.slice(5, 10), concepto: p.concepto, saldo: f, futuro: true };
     });
-
-    // Add today marker between real and future
     const todayPoint = realPoints.length > 0 && futureSorted.length > 0
-      ? [{ fecha: "hoy", concepto: "Hoy", saldo: r, futuro: false, isToday: true }]
-      : [];
-
+      ? [{ fecha: "hoy", concepto: "Hoy", saldo: r, futuro: false, isToday: true }] : [];
     return [...realPoints, ...todayPoint, ...futurePoints];
   }, [transactions, proyecciones, today]);
 
-  const todayIndex = chartData.findIndex(d => d.isToday);
-
   const kpis1 = [
     { label: "Dinero a Favor", value: fmt(dineroAFavor), color: dineroAFavor >= 0 ? "#4ade80" : "#f87171", sub: "Neto real estimado" },
-    { label: "Liquidez Actual", value: fmt(saldoActual), color: SEMAFORO_COLORS[semaforo], sub: "Saldo proyectado" },
-    { label: "Saldo c/ Obligaciones", value: fmt(saldoConOblig), color: saldoConOblig >= 0 ? "#4ade80" : "#f87171", sub: "Descontando deudas" },
+    { label: "Liquidez Actual", value: fmt(saldoActual), color: SEMAFORO_COLORS[semaforo], sub: "Saldo en cuentas" },
+    { label: "Saldo c/ Obligaciones", value: fmt(saldoConOblig), color: saldoConOblig >= 0 ? "#4ade80" : "#f87171", sub: "Descontando deudas pendientes" },
     { label: "Saldo Proyectado", value: fmt(saldoProyectado), color: saldoProyectado >= 0 ? "#4ade80" : "#f87171", sub: `Con ${proyecciones.length} mov. futuros` },
   ];
 
   const kpis2 = [
     { label: "Total Ingresos", value: fmt(totalIngresos), color: "#4ade80", sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} movimientos` },
     { label: "Total Egresos", value: fmt(totalEgresos), color: "#f87171", sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} movimientos` },
-    { label: "Total Obligaciones", value: fmt(totalOblig), color: "#facc15", sub: "Proveedores + sueldos + oficina" },
+    {
+      label: "Total Obligaciones",
+      value: totalOblig > 0 ? fmt(totalOblig) : "—",
+      color: "#facc15",
+      sub: totalOblig > 0
+        ? `${obligacionesMetricas?.count_pendiente || 0} pendientes`
+        : "Sin obligaciones pendientes"
+    },
   ];
 
   return (
     <div>
       <PageHeader pre="Overview" title="Dashboard" action={<PrimaryBtn onClick={onAdd}>+ Nuevo Movimiento</PrimaryBtn>} />
 
-      {/* KPIs row 1 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 14 }}>
         {kpis1.map((k, i) => (
           <Card key={i}>
@@ -144,7 +141,6 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
         ))}
       </div>
 
-      {/* KPIs row 2 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
         {kpis2.map((k, i) => (
           <Card key={i}>
@@ -155,10 +151,8 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
         ))}
       </div>
 
-      {/* Alertas */}
       <AlertasCashflow saldoActual={saldoActual} saldoProyectado={saldoProyectado} proximos7={proximos7} proximos30={proximos30} />
 
-      {/* Combined chart */}
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <SectionTitle>Evolución + Proyección del Saldo</SectionTitle>
@@ -201,14 +195,11 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
         </ResponsiveContainer>
       </Card>
 
-      {/* Proyecciones próximas en dashboard */}
       {proyecciones.length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <SectionTitle>Próximos Movimientos Proyectados</SectionTitle>
-            <button onClick={onGoProyecciones} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11, transition: "all 0.1s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#334155"; e.currentTarget.style.color = "#94a3b8"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e293b"; e.currentTarget.style.color = "#64748b"; }}>
+            <button onClick={onGoProyecciones} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
               Ver todos →
             </button>
           </div>
@@ -238,7 +229,6 @@ export default function DashboardPage({ data, onAdd, onGoProyecciones }) {
         </Card>
       )}
 
-      {/* Últimos movimientos reales */}
       <Card>
         <SectionTitle>Últimos Movimientos</SectionTitle>
         {[...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5).map((t, i, arr) => (
