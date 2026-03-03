@@ -3,6 +3,14 @@ import { api } from "../lib/api.js";
 
 const DEFAULT_SETTINGS = { umbral_verde: 1000000, umbral_amarillo: 200000 };
 
+const DEFAULT_SUMMARY = {
+  liquidezActual: 0, fondosTotales: 0,
+  obligacionesConfirmadas: 0, obligacionesProbables: 0, obligacionesTotales: 0,
+  saldoConfirmadoConObligaciones: 0, saldoProbableConObligaciones: 0,
+  dineroAFavor: 0, ingresosTotalesPeriodo: 0, egresosTotalesPeriodo: 0,
+  periodo: { inicio: "", fin: "", label: "Mes actual" },
+};
+
 export function useData() {
   const [transactions, setTransactions]               = useState([]);
   const [proyecciones, setProyecciones]               = useState([]);
@@ -18,20 +26,22 @@ export function useData() {
   const [dineroEstimado, setDineroEstimado]     = useState([]);
   const [fondosInversion, setFondosInversion]   = useState([]);
   const [financialSettings, setFinancialSettings] = useState(DEFAULT_SETTINGS);
+  const [dashboardSummary,   setDashboardSummary]   = useState(DEFAULT_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [txs, projs, obligs, obligMetr, ctas, dash, settings] = await Promise.all([
+      const [txs, projs, obligs, obligMetr, ctas, dash, settings, summary] = await Promise.all([
         api.getTransactions(),
         api.getProyecciones(),
         api.getObligaciones(),
         api.getObligacionesMetricas(),
         api.getCuentas(),
         api.getDashboard(),
-        api.getSettings().catch(() => DEFAULT_SETTINGS), // fallback gracioso
+        api.getSettings().catch(() => DEFAULT_SETTINGS),
+        api.getDashboardSummary().catch(() => DEFAULT_SUMMARY),
       ]);
       setTransactions(txs);
       setProyecciones(projs);
@@ -42,6 +52,7 @@ export function useData() {
       setDineroEstimado(dash.dineroEstimado || []);
       setFondosInversion(dash.fondosInversion || []);
       setFinancialSettings(settings || DEFAULT_SETTINGS);
+      setDashboardSummary(summary || DEFAULT_SUMMARY);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -52,10 +63,23 @@ export function useData() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── refreshSummary ───────────────────────────────────────────────────────
+  // Definida aquí (antes de todas las mutaciones) para evitar el bug de hoisting
+  // de funciones const: una const no se eleva, así que debe declararse antes de usarse.
+  // Se llama tras cualquier mutación que afecte las métricas del dashboard:
+  //   liquidezActual  → cambios en cuentas.balance_actual (módulo Cuentas)
+  //   fondosTotales   → add/update/delete fondos
+  //   obligaciones    → add/update/delete/pagar obligaciones
+  //   ingresos/egresos → add/update/delete transactions
+  const refreshSummary = async () => {
+    const s = await api.getDashboardSummary().catch(() => DEFAULT_SUMMARY);
+    setDashboardSummary(s || DEFAULT_SUMMARY);
+  };
+
   // ── Transactions ──────────────────────────────────────────────────────────
-  const addTransaction    = async (data) => { const tx = await api.createTransaction(data); setTransactions(prev => [tx, ...prev]); return tx; };
-  const updateTransaction = async (id, data) => { const tx = await api.updateTransaction(id, data); setTransactions(prev => prev.map(t => t.id === id ? tx : t)); return tx; };
-  const deleteTransaction = async (id)       => { await api.deleteTransaction(id); setTransactions(prev => prev.filter(t => t.id !== id)); };
+  const addTransaction    = async (data) => { const tx = await api.createTransaction(data); setTransactions(prev => [tx, ...prev]); refreshSummary(); return tx; };
+  const updateTransaction = async (id, data) => { const tx = await api.updateTransaction(id, data); setTransactions(prev => prev.map(t => t.id === id ? tx : t)); refreshSummary(); return tx; };
+  const deleteTransaction = async (id)       => { await api.deleteTransaction(id); setTransactions(prev => prev.filter(t => t.id !== id)); refreshSummary(); };
 
   // ── Proyecciones ──────────────────────────────────────────────────────────
   const addProyeccion    = async (data) => { const p = await api.createProyeccion(data); setProyecciones(prev => [...prev, p].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))); return p; };
@@ -68,19 +92,28 @@ export function useData() {
     setObligaciones(obligs);
     setObligacionesMetricas(metricas);
   };
-  const addObligacion    = async (data)      => { const o = await api.createObligacion(data); await refreshObligaciones(); return o; };
-  const updateObligacion = async (id, data)  => { const o = await api.updateObligacion(id, data); await refreshObligaciones(); return o; };
-  const deleteObligacion = async (id)        => { await api.deleteObligacion(id); await refreshObligaciones(); };
+  const addObligacion    = async (data)      => { const o = await api.createObligacion(data); await refreshObligaciones(); refreshSummary(); return o; };
+  const updateObligacion = async (id, data)  => { const o = await api.updateObligacion(id, data); await refreshObligaciones(); refreshSummary(); return o; };
+  const deleteObligacion = async (id)        => { await api.deleteObligacion(id); await refreshObligaciones(); refreshSummary(); };
   const pagarObligacion  = async (id, fecha_pago) => {
     const result = await api.pagarObligacion(id, fecha_pago);
     setTransactions(prev => [result.movimiento, ...prev]);
     await refreshObligaciones();
+    await refreshSummary(); // paid obligation affects all dashboard metrics
     return result;
   };
 
   // ── Cuentas ───────────────────────────────────────────────────────────────
-  const addCuenta    = async (nombre) => { const c = await api.createCuenta(nombre); setCuentas(prev => [...prev, c]); return c; };
-  const deleteCuenta = async (id)     => { await api.deleteCuenta(id); setCuentas(prev => prev.filter(c => c.id !== id)); };
+  const addCuenta           = async (nombre)         => { const c = await api.createCuenta(nombre); setCuentas(prev => [...prev, c]); return c; };
+  const deleteCuenta        = async (id)             => { await api.deleteCuenta(id); setCuentas(prev => prev.filter(c => c.id !== id)); };
+  // Actualiza balance_actual de una cuenta; luego refresca el summary para que
+  // liquidezActual = Σ cuentas.balance_actual se recalcule en el dashboard.
+  const updateCuentaBalance = async (id, balance_actual) => {
+    const c = await api.updateCuentaBalance(id, balance_actual);
+    setCuentas(prev => prev.map(x => x.id === id ? c : x));
+    refreshSummary(); // liquidezActual cambia → refrescar todas las métricas derivadas
+    return c;
+  };
 
   // ── Dashboard config ──────────────────────────────────────────────────────
   const saveConfig = async (data) => { const cfg = await api.updateConfig(data); setDashConfig(cfg); return cfg; };
@@ -89,9 +122,9 @@ export function useData() {
   // dineroEstimado kept in DB (non-destructive). Not exposed in UI. Cobros now live in Escenarios.
 
   // ── Fondos ────────────────────────────────────────────────────────────────
-  const addFondo    = async (data)      => { const item = await api.createFondo(data); setFondosInversion(prev => [...prev, item]); return item; };
-  const updateFondo = async (id, data)  => { const item = await api.updateFondo(id, data); setFondosInversion(prev => prev.map(x => x.id === id ? item : x)); return item; };
-  const deleteFondo = async (id)        => { await api.deleteFondo(id); setFondosInversion(prev => prev.filter(x => x.id !== id)); };
+  const addFondo    = async (data)      => { const item = await api.createFondo(data); setFondosInversion(prev => [...prev, item]); refreshSummary(); return item; };
+  const updateFondo = async (id, data)  => { const item = await api.updateFondo(id, data); setFondosInversion(prev => prev.map(x => x.id === id ? item : x)); refreshSummary(); return item; };
+  const deleteFondo = async (id)        => { await api.deleteFondo(id); setFondosInversion(prev => prev.filter(x => x.id !== id)); refreshSummary(); };
 
   // ── Financial settings ────────────────────────────────────────────────────
   const saveFinancialSettings = async (data) => {
@@ -103,12 +136,12 @@ export function useData() {
   return {
     transactions, proyecciones, obligaciones, obligacionesMetricas,
     cuentas, dashConfig, dineroEstimado, fondosInversion,
-    financialSettings,
+    financialSettings, dashboardSummary, refreshSummary,
     loading, error, reload: load,
     addTransaction, updateTransaction, deleteTransaction,
     addProyeccion, updateProyeccion, deleteProyeccion,
     addObligacion, updateObligacion, deleteObligacion, pagarObligacion,
-    addCuenta, deleteCuenta,
+    addCuenta, deleteCuenta, updateCuentaBalance,
     saveConfig,
     addFondo, updateFondo, deleteFondo,
     saveFinancialSettings,

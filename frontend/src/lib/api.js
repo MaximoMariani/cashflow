@@ -27,10 +27,15 @@ export const api = {
   // Cuentas
   getCuentas:     ()      => req("GET",    "/cuentas"),
   createCuenta:   (nombre)=> req("POST",   "/cuentas", { nombre }),
-  deleteCuenta:   (id)    => req("DELETE", `/cuentas/${id}`),
+  deleteCuenta:          (id)  => req("DELETE", `/cuentas/${id}`),
+  updateCuentaBalance:   (id, balance_actual) => req("PATCH", `/cuentas/${id}/balance`, { balance_actual }),
 
   // Dashboard
-  getDashboard:   ()      => req("GET", "/dashboard"),
+  getDashboard:        ()        => req("GET", "/dashboard"),
+  getDashboardSummary: (params) => {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return req("GET", "/dashboard/summary" + qs);
+  },
   updateConfig:   (data)  => req("PUT", "/dashboard/config", data),
 
   // Estimado

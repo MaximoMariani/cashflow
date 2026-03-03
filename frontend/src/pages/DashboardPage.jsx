@@ -15,28 +15,29 @@ const TT = ({ active, payload }) => {
   );
 };
 
-function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos7, umbralVerde, umbralAmarillo }) {
+// ── Alertas de cashflow ───────────────────────────────────────────────────────
+function AlertasCashflow({ summary, umbralVerde, umbralAmarillo }) {
+  const { liquidezActual, saldoConfirmadoConObligaciones, saldoProbableConObligaciones, periodo } = summary;
   const alertas = [];
-  const semActual = getSemaforo(saldoActual,     umbralVerde, umbralAmarillo);
-  const semConf   = getSemaforo(saldoConfirmado, umbralVerde, umbralAmarillo);
-  const semProb   = getSemaforo(saldoProbable,   umbralVerde, umbralAmarillo);
 
-  if (semActual === "rojo")         alertas.push({ nivel: "rojo",     msg: "Liquidez critica. Accion urgente." });
-  else if (semActual === "amarillo") alertas.push({ nivel: "amarillo", msg: "Atencion: saldo por debajo del umbral verde." });
-  else                               alertas.push({ nivel: "verde",    msg: "Liquidez saludable." });
+  const semActual = getSemaforo(liquidezActual,                  umbralVerde, umbralAmarillo);
+  const semConf   = getSemaforo(saldoConfirmadoConObligaciones, umbralVerde, umbralAmarillo);
+  const semProb   = getSemaforo(saldoProbableConObligaciones,   umbralVerde, umbralAmarillo);
+
+  if (semActual === "rojo")
+    alertas.push({ nivel: "rojo",    msg: "Liquidez critica. Accion urgente requerida." });
+  else if (semActual === "amarillo")
+    alertas.push({ nivel: "amarillo", msg: "Atencion: liquidez por debajo del umbral verde." });
+  else
+    alertas.push({ nivel: "verde",    msg: "Liquidez saludable." });
 
   if (semConf === "rojo" && semActual !== "rojo")
-    alertas.push({ nivel: "rojo", msg: "Escenario confirmado proyecta zona critica." });
+    alertas.push({ nivel: "rojo", msg: "Descontando obligaciones confirmadas, el saldo cae a zona critica." });
   else if (semConf === "amarillo" && semActual === "verde")
-    alertas.push({ nivel: "amarillo", msg: "Escenario confirmado muestra caida del saldo." });
+    alertas.push({ nivel: "amarillo", msg: "Obligaciones confirmadas comprimen el saldo disponible." });
 
   if (semProb === "rojo" && semConf !== "rojo")
-    alertas.push({ nivel: "amarillo", msg: "Si se materializan los probables, el saldo cae a zona de riesgo." });
-
-  if (proximos7.length > 0) {
-    const net = proximos7.reduce((a, p) => a + parseFloat(p.monto), 0);
-    alertas.push({ nivel: net < 0 ? "amarillo" : "verde", msg: `Proximos 7 dias: neto ${fmt(net)} (${proximos7.length} mov.)` });
-  }
+    alertas.push({ nivel: "amarillo", msg: "Si se materializan las obligaciones probables, cae a zona de riesgo." });
 
   const colors = {
     verde:    { bg: "rgba(74,222,128,0.06)",  border: "rgba(74,222,128,0.2)",  text: "#4ade80" },
@@ -52,53 +53,53 @@ function AlertasCashflow({ saldoActual, saldoConfirmado, saldoProbable, proximos
           const c = colors[a.nivel];
           return (
             <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.text, marginTop: 5, flexShrink: 0, boxShadow: `0 0 6px ${c.text}` }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.text, marginTop: 5, flexShrink: 0 }} />
               <span style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>{a.msg}</span>
             </div>
           );
         })}
+        {periodo?.inicio && (
+          <div style={{ fontSize: 11, color: "#334155", paddingTop: 8, borderTop: "1px solid #111827" }}>
+            Periodo: {periodo.inicio} — {periodo.fin} ({periodo.label})
+          </div>
+        )}
       </div>
     </Card>
   );
 }
 
 export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
-  const { transactions, proyecciones, obligacionesMetricas, fondosInversion, financialSettings } = data;
+  const { transactions, proyecciones, dashboardSummary, financialSettings } = data;
   const isMobile = useIsMobile();
   const today = new Date().toISOString().slice(0, 10);
 
+  // Umbrales del semáforo (configurables)
   const umbralVerde    = parseFloat(financialSettings?.umbral_verde    ?? 1000000);
   const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200000);
 
-  const saldoActual   = useMemo(() => transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
-  const totalIngresos = useMemo(() => transactions.filter(t => parseFloat(t.monto) > 0).reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
-  const totalEgresos  = useMemo(() => transactions.filter(t => parseFloat(t.monto) < 0).reduce((a, t) => a + Math.abs(parseFloat(t.monto)), 0), [transactions]);
-  const totalFondos   = useMemo(() => fondosInversion.reduce((a, f) => a + parseFloat(f.monto || 0), 0), [fondosInversion]);
-  const totalOblig    = useMemo(() => parseFloat(obligacionesMetricas?.total_pendiente) || 0, [obligacionesMetricas]);
+  // ── Métricas: todas vienen del backend (dashboardSummary) ────────────────
+  // El frontend NO recalcula nada; solo renderiza lo que devuelve /api/dashboard/summary.
+  const {
+    liquidezActual             = 0,
+    fondosTotales              = 0,
+    obligacionesConfirmadas    = 0,
+    obligacionesProbables      = 0,
+    obligacionesTotales        = 0,
+    saldoConfirmadoConObligaciones = 0,
+    saldoProbableConObligaciones   = 0,
+    dineroAFavor               = 0,
+    ingresosTotalesPeriodo     = 0,
+    egresosTotalesPeriodo      = 0,
+    periodo                    = { inicio: "", fin: "", label: "Mes actual" },
+  } = dashboardSummary || {};
 
-  const semaforo      = getSemaforo(saldoActual, umbralVerde, umbralAmarillo);
-  const saldoConOblig = saldoActual - totalOblig;
-  const dineroAFavor  = saldoActual + totalFondos - totalOblig;
+  const semaforo = getSemaforo(liquidezActual, umbralVerde, umbralAmarillo);
 
-  const futuras = useMemo(() => proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
+  // ── Escenarios (solo para gráfico y lista) ───────────────────────────────
+  const futuras = useMemo(() =>
+    proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
 
-  const saldoConfirmado = useMemo(() => {
-    const sum = futuras.filter(p => p.escenario === "CONFIRMADO").reduce((a, p) => a + parseFloat(p.monto), 0);
-    return saldoActual + sum;
-  }, [saldoActual, futuras]);
-
-  const saldoProbable = useMemo(() => {
-    const sum = futuras.filter(p => !p.escenario || p.escenario === "PROBABLE").reduce((a, p) => a + parseFloat(p.monto), 0);
-    return saldoConfirmado + sum;
-  }, [saldoConfirmado, futuras]);
-
-  const diferencia = saldoProbable - saldoConfirmado;
-
-  const proximos7 = proyecciones.filter(p => {
-    const d = (new Date(p.fecha) - new Date()) / 86400000;
-    return d >= 0 && d <= 7;
-  });
-
+  // ── Chart data ────────────────────────────────────────────────────────────
   const chartData = useMemo(() => {
     const realSorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     let r = 0;
@@ -106,73 +107,115 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
       r += parseFloat(t.monto);
       return { fecha: t.fecha?.slice(5, 10), concepto: t.concepto, saldo: r, futuro: false };
     });
-    const futureSorted = [...futuras].filter(p => p.escenario === "CONFIRMADO").sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    const futureSorted = [...futuras]
+      .filter(p => p.escenario === "CONFIRMADO")
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     let f = r;
     const futurePoints = futureSorted.map(p => {
       f += parseFloat(p.monto);
       return { fecha: p.fecha?.slice(5, 10), concepto: p.concepto, saldo: f, futuro: true };
     });
     const todayPoint = realPoints.length > 0 && futureSorted.length > 0
-      ? [{ fecha: "hoy", concepto: "Hoy", saldo: r, futuro: false, isToday: true }] : [];
+      ? [{ fecha: "hoy", concepto: "Hoy", saldo: r, futuro: false }] : [];
     return [...realPoints, ...todayPoint, ...futurePoints];
   }, [transactions, futuras]);
 
-  // KPI grid: 2 cols on mobile, 4 on desktop
+  // ── KPI rows ──────────────────────────────────────────────────────────────
+  // Orden exacto según spec:
+  // Fila 1 (HOY): Liquidez · Saldo confirmado · Saldo probable · Dinero a favor
+  // Fila 2 (PERÍODO): Ingresos · Egresos · Obligaciones (breakdown)
   const kpis1 = [
-    { label: "Dinero a Favor",     value: fmt(dineroAFavor),    color: dineroAFavor >= 0 ? "#4ade80" : "#f87171",       sub: "Saldo + Fondos - Obligaciones" },
-    { label: "Liquidez Actual",    value: fmt(saldoActual),     color: SEMAFORO_COLORS[semaforo],                        sub: "Saldo en cuentas" },
-    { label: "Saldo c/ Oblig.",    value: fmt(saldoConOblig),   color: saldoConOblig >= 0 ? "#4ade80" : "#f87171",       sub: "Descontando deudas" },
-    { label: "Fut. Confirmado",    value: fmt(saldoConfirmado), color: saldoConfirmado >= 0 ? "#818cf8" : "#f87171",     sub: "Solo mov. seguros" },
-  ];
-  const kpis2 = [
-    { label: "Total Ingresos",     value: fmt(totalIngresos),   color: "#4ade80",  sub: `${transactions.filter(t => parseFloat(t.monto) > 0).length} mov.` },
-    { label: "Total Egresos",      value: fmt(totalEgresos),    color: "#f87171",  sub: `${transactions.filter(t => parseFloat(t.monto) < 0).length} mov.` },
-    { label: "Obligaciones",       value: totalOblig > 0 ? fmt(totalOblig) : "-", color: "#facc15", sub: `${obligacionesMetricas?.count_pendiente || 0} pendientes` },
-    { label: "Fut. c/ Probables",  value: fmt(saldoProbable),   color: saldoProbable >= 0 ? "#4ade80" : "#f87171", sub: (diferencia >= 0 ? "+" : "") + fmt(diferencia) + " vs conf." },
+    {
+      label: "Liquidez Actual",
+      value: fmt(liquidezActual),
+      color: SEMAFORO_COLORS[semaforo],
+      sub: "Σ movimientos ejecutados",
+    },
+    {
+      label: "Saldo Confirmado",
+      value: fmt(saldoConfirmadoConObligaciones),
+      color: saldoConfirmadoConObligaciones >= 0 ? "#818cf8" : "#f87171",
+      sub: "Liquidez − oblig. confirmadas",
+    },
+    {
+      label: "Saldo Probable",
+      value: fmt(saldoProbableConObligaciones),
+      color: saldoProbableConObligaciones >= 0 ? "#94a3b8" : "#f87171",
+      sub: "Liquidez − todas las oblig.",
+    },
+    {
+      label: "Dinero a Favor",
+      value: fmt(dineroAFavor),
+      color: dineroAFavor >= 0 ? "#4ade80" : "#f87171",
+      sub: "Liquidez + Fondos − Oblig.",
+    },
   ];
 
-  const kpiGrid = (kpis) => (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
-      {kpis.map((k, i) => (
-        <Card key={i} style={{ padding: isMobile ? "14px 14px" : undefined }}>
-          <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: isMobile ? 6 : 10 }}>{k.label}</div>
-          <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.value}</div>
-          {!isMobile && <div style={{ fontSize: 11, color: "#334155" }}>{k.sub}</div>}
-        </Card>
-      ))}
-    </div>
+  const kpis2 = [
+    {
+      label: "Ingresos del Período",
+      value: fmt(ingresosTotalesPeriodo),
+      color: "#4ade80",
+      sub: periodo?.label || "Mes actual",
+    },
+    {
+      label: "Egresos del Período",
+      value: fmt(egresosTotalesPeriodo),
+      color: "#f87171",
+      sub: periodo?.label || "Mes actual",
+    },
+    {
+      label: "Obligaciones",
+      value: fmt(obligacionesTotales),
+      color: obligacionesTotales > 0 ? "#facc15" : "#4ade80",
+      // Spec: mostrar breakdown textual "$X confirmadas · $Y probables"
+      sub: `${fmt(obligacionesConfirmadas)} conf. · ${fmt(obligacionesProbables)} prob.`,
+      wide: true, // ocupa 2 col en mobile
+    },
+  ];
+
+  const kpiCard = (k, i) => (
+    <Card key={i} style={{ padding: isMobile ? "14px" : undefined }}>
+      <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: isMobile ? 6 : 10 }}>{k.label}</div>
+      <div style={{ fontSize: isMobile ? 15 : 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.value}</div>
+      <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.4 }}>{k.sub}</div>
+    </Card>
   );
 
   return (
     <div>
       <PageHeader pre="Overview" title="Dashboard" action={<PrimaryBtn onClick={onAdd}>+ Nuevo Movimiento</PrimaryBtn>} />
 
-      {/* Mobile: show add button */}
       {isMobile && (
         <button onClick={onAdd} style={{ width: "100%", background: "#f8fafc", color: "#060a10", border: "none", padding: "13px", borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 700, marginBottom: 16, WebkitTapHighlightColor: "transparent" }}>
           + Nuevo Movimiento
         </button>
       )}
 
-      {kpiGrid(kpis1)}
-      {kpiGrid(kpis2)}
+      {/* ── Fila 1: métricas HOY ── */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
+        {kpis1.map(kpiCard)}
+      </div>
 
-      <AlertasCashflow saldoActual={saldoActual} saldoConfirmado={saldoConfirmado} saldoProbable={saldoProbable} proximos7={proximos7} umbralVerde={umbralVerde} umbralAmarillo={umbralAmarillo} />
+      {/* ── Fila 2: métricas PERÍODO ── */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
+        {kpis2.slice(0, 2).map(kpiCard)}
+        {/* Obligaciones: card ancho en mobile (span 2 cols) */}
+        <div style={{ gridColumn: isMobile ? "1 / -1" : undefined }}>
+          {kpiCard(kpis2[2], 2)}
+        </div>
+      </div>
 
-      {/* Grafico */}
+      <AlertasCashflow summary={dashboardSummary || {}} umbralVerde={umbralVerde} umbralAmarillo={umbralAmarillo} />
+
+      {/* ── Gráfico ── */}
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isMobile ? 12 : 16, flexWrap: "wrap", gap: 8 }}>
           <SectionTitle>Evolucion + Escenario Confirmado</SectionTitle>
           {!isMobile && (
             <div style={{ display: "flex", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 2, background: "#e2e8f0" }} />
-                <span style={{ fontSize: 11, color: "#64748b" }}>Real</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 20, height: 2, background: "#818cf8" }} />
-                <span style={{ fontSize: 11, color: "#64748b" }}>Confirmado</span>
-              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 20, height: 2, background: "#e2e8f0" }} /><span style={{ fontSize: 11, color: "#64748b" }}>Real</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 20, height: 2, background: "#818cf8" }} /><span style={{ fontSize: 11, color: "#64748b" }}>Confirmado</span></div>
             </div>
           )}
         </div>
@@ -200,13 +243,12 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </ResponsiveContainer>
       </Card>
 
-      {/* Proximos Escenarios */}
+      {/* ── Próximos Escenarios ── */}
       {proyecciones.length > 0 && (
         <Card style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <SectionTitle>Proximos Escenarios</SectionTitle>
-            <button onClick={onGoEscenarios}
-              style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
+            <button onClick={onGoEscenarios} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
               Ver todos
             </button>
           </div>
@@ -241,7 +283,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </Card>
       )}
 
-      {/* Ultimos Movimientos */}
+      {/* ── Últimos Movimientos ── */}
       <Card>
         <SectionTitle>Ultimos Movimientos</SectionTitle>
         {[...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, isMobile ? 4 : 5).map((t, i, arr) => (

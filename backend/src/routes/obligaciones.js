@@ -46,7 +46,7 @@ router.get("/", async (req, res) => {
 
 // POST /api/obligaciones
 router.post("/", async (req, res) => {
-  const { fecha_vencimiento, concepto, categoria, cuenta, monto, notas } = req.body;
+  const { fecha_vencimiento, concepto, categoria, cuenta, monto, notas, certeza } = req.body;
   if (!fecha_vencimiento || !concepto || !cuenta || monto === undefined)
     return res.status(400).json({ error: "Campos requeridos: fecha_vencimiento, concepto, cuenta, monto" });
   const montoNum = parseFloat(monto);
@@ -54,9 +54,9 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "El monto debe ser mayor a 0" });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO obligaciones (fecha_vencimiento, concepto, categoria, cuenta, monto, notas, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,'PENDIENTE') RETURNING *`,
-      [fecha_vencimiento, concepto, categoria || "Otros", cuenta, montoNum, notas || ""]
+      `INSERT INTO obligaciones (fecha_vencimiento, concepto, categoria, cuenta, monto, notas, estado, certeza)
+       VALUES ($1,$2,$3,$4,$5,$6,'PENDIENTE',$7) RETURNING *`,
+      [fecha_vencimiento, concepto, categoria || "Otros", cuenta, montoNum, notas || "", ["CONFIRMADA","PROBABLE"].includes((certeza||"").toUpperCase()) ? certeza.toUpperCase() : "CONFIRMADA"]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -67,7 +67,7 @@ router.post("/", async (req, res) => {
 // PUT /api/obligaciones/:id
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { fecha_vencimiento, concepto, categoria, cuenta, monto, notas } = req.body;
+  const { fecha_vencimiento, concepto, categoria, cuenta, monto, notas, certeza } = req.body;
   if (!fecha_vencimiento || !concepto || !cuenta || monto === undefined)
     return res.status(400).json({ error: "Campos requeridos: fecha_vencimiento, concepto, cuenta, monto" });
   const montoNum = parseFloat(monto);
@@ -78,11 +78,17 @@ router.put("/:id", async (req, res) => {
     if (check.rowCount === 0) return res.status(404).json({ error: "Obligación no encontrada" });
     if (check.rows[0].estado === "PAGADA")
       return res.status(400).json({ error: "No se puede editar una obligación ya pagada" });
+    // certeza: si llega 'CONFIRMADA' o 'PROBABLE' la usamos; de lo contrario mantenemos la existente.
+    // COALESCE(NULLIF($7,''), col_existente) conserva el valor si no se envía nada.
+    const certezaVal = ["CONFIRMADA","PROBABLE"].includes((certeza||"").toUpperCase())
+      ? certeza.toUpperCase()
+      : null; // null → DB mantiene valor actual vía COALESCE
     const { rows } = await pool.query(
       `UPDATE obligaciones
-       SET fecha_vencimiento=$1, concepto=$2, categoria=$3, cuenta=$4, monto=$5, notas=$6, updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
-      [fecha_vencimiento, concepto, categoria || "Otros", cuenta, montoNum, notas || "", id]
+       SET fecha_vencimiento=$1, concepto=$2, categoria=$3, cuenta=$4, monto=$5,
+           notas=$6, certeza=COALESCE($7, certeza), updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [fecha_vencimiento, concepto, categoria || "Otros", cuenta, montoNum, notas || "", certezaVal, id]
     );
     res.json(rows[0]);
   } catch (err) {

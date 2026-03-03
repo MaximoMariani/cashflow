@@ -30,12 +30,13 @@ const blankForm = (cuentas) => ({
   cuenta: cuentas[0]?.nombre || "",
   monto: "",
   notas: "",
+  certeza: "CONFIRMADA",  // default conservador
 });
 
 // ── Modal crear/editar obligación ─────────────────────────────────────────────
 function ObligModal({ oblig, cuentas, onSave, onClose }) {
   const [form, setForm] = useState(oblig
-    ? { ...oblig, monto: Math.abs(parseFloat(oblig.monto)).toString(), fecha_vencimiento: oblig.fecha_vencimiento?.slice(0, 10) }
+    ? { ...oblig, monto: Math.abs(parseFloat(oblig.monto)).toString(), fecha_vencimiento: oblig.fecha_vencimiento?.slice(0, 10), certeza: oblig.certeza || "CONFIRMADA" }
     : blankForm(cuentas)
   );
   const [saving, setSaving] = useState(false);
@@ -84,6 +85,22 @@ function ObligModal({ oblig, cuentas, onSave, onClose }) {
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Notas (opcional)</label>
         <input type="text" value={form.notas} onChange={set("notas")} placeholder="Detalle adicional..." style={iStyle} />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <label style={lStyle}>Certeza</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[
+            { val: "CONFIRMADA", label: "Confirmada", color: "#818cf8", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)" },
+            { val: "PROBABLE",   label: "Probable",   color: "#facc15", bg: "rgba(250,204,21,0.10)",  border: "rgba(250,204,21,0.30)" },
+          ].map(({ val, label, color, bg, border }) => (
+            <button key={val} onClick={() => setForm(p => ({ ...p, certeza: val }))} style={{
+              flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, border: "1px solid",
+              background: form.certeza === val ? bg : "transparent",
+              borderColor: form.certeza === val ? border : "#1e293b",
+              color: form.certeza === val ? color : "#64748b",
+            }}>{label}</button>
+          ))}
+        </div>
       </div>
       {err && (
         <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(248,113,113,0.1)", borderRadius: 6 }}>

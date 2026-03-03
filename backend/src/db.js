@@ -109,6 +109,47 @@ async function initDB() {
       ON CONFLICT (id) DO NOTHING;
     `);
 
+
+    // ── Migración: columna certeza en obligaciones ──────────────────────────
+    // Certeza ∈ {'CONFIRMADA','PROBABLE'} — requerida para breakdown del dashboard.
+    // Default CONFIRMADA: las obligaciones existentes se tratan como confirmadas (conservador).
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'obligaciones' AND column_name = 'certeza'
+        ) THEN
+          ALTER TABLE obligaciones
+            ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADA';
+          ALTER TABLE obligaciones
+            ADD CONSTRAINT obligaciones_certeza_check
+            CHECK (certeza IN ('CONFIRMADA','PROBABLE'));
+        END IF;
+      END$$;
+    `);
+
+
+    // ── Migración: columna balance_actual en cuentas ────────────────────────
+    // Requerida por spec: liquidezActual = Σ cuentas.balance_actual (foto de hoy).
+    // Esta columna representa el saldo real de cada cuenta (actualizado manualmente
+    // o via integración bancaria). NO se sincroniza automáticamente con transactions;
+    // el usuario la mantiene desde el módulo de Cuentas.
+    // Default 0: cuentas existentes arrancan con balance_actual=0 hasta que el usuario
+    // lo actualice. Conservador: no inventar saldos.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'cuentas' AND column_name = 'balance_actual'
+        ) THEN
+          ALTER TABLE cuentas
+            ADD COLUMN balance_actual NUMERIC(15,2) NOT NULL DEFAULT 0;
+        END IF;
+      END$$;
+    `);
+
     // ── Seeds ─────────────────────────────────────────────────────────────
     const { rowCount } = await client.query("SELECT 1 FROM cuentas LIMIT 1");
     if (rowCount === 0) {
