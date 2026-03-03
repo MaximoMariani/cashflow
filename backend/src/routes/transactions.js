@@ -1,6 +1,12 @@
 const express = require("express");
-const router = express.Router();
+const router  = express.Router();
 const { pool } = require("../db");
+
+// Helper: validate certeza value
+const validCerteza = (c) =>
+  ["CONFIRMADO", "PROBABLE"].includes((c || "").toUpperCase())
+    ? c.toUpperCase()
+    : "CONFIRMADO"; // default conservador
 
 // GET all transactions
 router.get("/", async (req, res) => {
@@ -16,15 +22,15 @@ router.get("/", async (req, res) => {
 
 // POST create transaction
 router.post("/", async (req, res) => {
-  const { fecha, concepto, tipo, categoria, monto, cuenta } = req.body;
+  const { fecha, concepto, tipo, categoria, monto, cuenta, certeza } = req.body;
   if (!fecha || !concepto || !tipo || !categoria || monto === undefined || !cuenta) {
     return res.status(400).json({ error: "Faltan campos requeridos" });
   }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO transactions (fecha, concepto, tipo, categoria, monto, cuenta)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [fecha, concepto, tipo, categoria, parseFloat(monto), cuenta]
+      `INSERT INTO transactions (fecha, concepto, tipo, categoria, monto, cuenta, certeza)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [fecha, concepto, tipo, categoria, parseFloat(monto), cuenta, validCerteza(certeza)]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -35,12 +41,13 @@ router.post("/", async (req, res) => {
 // PUT update transaction
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { fecha, concepto, tipo, categoria, monto, cuenta } = req.body;
+  const { fecha, concepto, tipo, categoria, monto, cuenta, certeza } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE transactions SET fecha=$1, concepto=$2, tipo=$3, categoria=$4, monto=$5, cuenta=$6
-       WHERE id=$7 RETURNING *`,
-      [fecha, concepto, tipo, categoria, parseFloat(monto), cuenta, id]
+      `UPDATE transactions
+       SET fecha=$1, concepto=$2, tipo=$3, categoria=$4, monto=$5, cuenta=$6, certeza=$7
+       WHERE id=$8 RETURNING *`,
+      [fecha, concepto, tipo, categoria, parseFloat(monto), cuenta, validCerteza(certeza), id]
     );
     if (rows.length === 0) return res.status(404).json({ error: "No encontrado" });
     res.json(rows[0]);

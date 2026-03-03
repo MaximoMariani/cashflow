@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useData } from "./hooks/useData.js";
 import { useIsMobile } from "./hooks/useIsMobile.js";
+import { useTheme } from "./hooks/useTheme.js";
 import { Spinner, ErrorBanner } from "./components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS } from "./lib/utils.js";
 import TxModal from "./components/TxModal.jsx";
@@ -32,6 +33,34 @@ const LABELS = {
   cuentas: "Cuentas", config: "Configuración",
 };
 
+// ── Theme Toggle Button ───────────────────────────────────────────────────────
+// Cycles: dark → light → system → dark
+const THEME_ICONS  = { dark: "🌙", light: "☀️", system: "⚙" };
+const THEME_LABELS = { dark: "Oscuro", light: "Claro", system: "Sistema" };
+const THEME_CYCLE  = { dark: "light", light: "system", system: "dark" };
+
+function ThemeToggle({ theme, setTheme, compact = false }) {
+  const next = THEME_CYCLE[theme] || "dark";
+  return (
+    <button
+      onClick={() => setTheme(next)}
+      title={`Tema: ${THEME_LABELS[theme]} → cambiar a ${THEME_LABELS[next]}`}
+      style={{
+        display: "flex", alignItems: "center", gap: compact ? 0 : 6,
+        background: "none",
+        border: "1px solid var(--cf-border)",
+        color: "var(--cf-text-muted)",
+        cursor: "pointer", padding: compact ? "6px 8px" : "7px 12px",
+        borderRadius: 7, fontSize: compact ? 14 : 12, fontWeight: 500,
+        transition: "all 0.15s", WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span style={{ fontSize: 14 }}>{THEME_ICONS[theme]}</span>
+      {!compact && <span style={{ fontSize: 11, color: "var(--cf-text-faint)" }}>{THEME_LABELS[theme]}</span>}
+    </button>
+  );
+}
+
 export default function App() {
   const savedUser = sessionStorage.getItem("cf_user");
   const [user, setUser]             = useState(savedUser || null);
@@ -40,6 +69,7 @@ export default function App() {
   const [showGlobalAdd, setShowGlobalAdd] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMobile                    = useIsMobile();
+  const { theme, setTheme }         = useTheme();
 
   const { transactions, financialSettings, loading, error, reload, cuentas, addTransaction } = data;
 
@@ -49,16 +79,15 @@ export default function App() {
   const semaforo       = getSemaforo(saldo, umbralVerde, umbralAmarillo);
 
   const handleLogout = () => { sessionStorage.removeItem("cf_user"); setUser(null); };
-
   if (!user) return <LoginPage onLogin={setUser} />;
 
   const navigate = (id) => { setView(id); setDrawerOpen(false); };
 
   const navBtn = (id, label, icon) => (
     <button key={id} onClick={() => navigate(id)} style={{
-      background: view === id ? "#111827" : "transparent",
-      border: view === id ? "1px solid #1e293b" : "1px solid transparent",
-      color: view === id ? "#f8fafc" : "#64748b",
+      background: view === id ? "var(--cf-card-raised)" : "transparent",
+      border: view === id ? "1px solid var(--cf-border-mid)" : "1px solid transparent",
+      color: view === id ? "var(--cf-text)" : "var(--cf-text-faint)",
       padding: "11px 14px", borderRadius: 8, cursor: "pointer", textAlign: "left",
       fontSize: 13, fontWeight: view === id ? 600 : 400, transition: "all 0.15s",
       display: "flex", alignItems: "center", gap: 10, width: "100%",
@@ -70,26 +99,32 @@ export default function App() {
   );
 
   const semaforoSection = (
-    <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid #1a2236" }}>
-      <div style={{ fontSize: 11, color: "#334155", marginBottom: 6 }}>Semáforo</div>
+    <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid var(--cf-border)" }}>
+      <div style={{ fontSize: 11, color: "var(--cf-text-ghost)", marginBottom: 6 }}>Semáforo</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <div style={{ width: 10, height: 10, borderRadius: "50%", background: SEMAFORO_COLORS[semaforo], boxShadow: `0 0 8px ${SEMAFORO_COLORS[semaforo]}` }} />
         <span style={{ fontSize: 12, color: SEMAFORO_COLORS[semaforo], fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>{semaforo}</span>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono',monospace", marginBottom: 4 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--cf-text-sub)", fontFamily: "'DM Mono',monospace", marginBottom: 4 }}>
         {loading ? "—" : fmt(saldo)}
       </div>
-      <div style={{ fontSize: 10, color: "#334155", marginBottom: 16, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 10, color: "var(--cf-text-ghost)", marginBottom: 14, lineHeight: 1.5 }}>
         Verde ≥ {fmt(umbralVerde)}<br />
         Amarillo ≥ {fmt(umbralAmarillo)}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid #111827" }}>
+
+      {/* Theme toggle in sidebar */}
+      <div style={{ marginBottom: 12 }}>
+        <ThemeToggle theme={theme} setTheme={setTheme} />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid var(--cf-border)" }}>
         <div>
-          <div style={{ fontSize: 11, color: "#334155", marginBottom: 2 }}>Usuario</div>
-          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>{user}</div>
+          <div style={{ fontSize: 11, color: "var(--cf-text-ghost)", marginBottom: 2 }}>Usuario</div>
+          <div style={{ fontSize: 12, color: "var(--cf-text-faint)", fontWeight: 500 }}>{user}</div>
         </div>
         <button onClick={handleLogout}
-          style={{ background: "none", border: "1px solid #1a2236", color: "#334155", cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 11 }}>
+          style={{ background: "none", border: "1px solid var(--cf-border)", color: "var(--cf-text-ghost)", cursor: "pointer", padding: "6px 10px", borderRadius: 6, fontSize: 11 }}>
           Salir
         </button>
       </div>
@@ -99,39 +134,38 @@ export default function App() {
   const sidebarInner = (
     <>
       <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 11, letterSpacing: "0.15em", color: "#475569", textTransform: "uppercase", marginBottom: 4 }}>Gestión</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc", letterSpacing: "-0.02em" }}>CashFlow</div>
+        <div style={{ fontSize: 11, letterSpacing: "0.15em", color: "var(--cf-text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Gestión</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--cf-text)", letterSpacing: "-0.02em" }}>CashFlow</div>
       </div>
       {NAV.map(v => navBtn(v.id, v.label, v.icon))}
-      <div style={{ height: 1, background: "#111827", margin: "8px 0" }} />
+      <div style={{ height: 1, background: "var(--cf-border)", margin: "8px 0" }} />
       {NAV_BOTTOM.map(v => navBtn(v.id, v.label, v.icon))}
       {semaforoSection}
     </>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#060a10", color: "#f8fafc", fontFamily: "'DM Sans','Helvetica Neue',sans-serif", display: "flex" }}>
+    <div style={{ minHeight: "100vh", background: "var(--cf-bg)", color: "var(--cf-text)", fontFamily: "'DM Sans','Helvetica Neue',sans-serif", display: "flex" }}>
 
-      {/* ── DESKTOP SIDEBAR ── */}
+      {/* ── Desktop Sidebar ── */}
       {!isMobile && (
-        <div style={{ width: 230, background: "#080d14", borderRight: "1px solid #1a2236", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
+        <div style={{ width: 230, background: "var(--cf-sidebar)", borderRight: "1px solid var(--cf-border)", padding: "32px 20px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
           {sidebarInner}
         </div>
       )}
 
-      {/* ── MOBILE DRAWER OVERLAY ── */}
+      {/* ── Mobile Drawer Overlay ── */}
       {isMobile && drawerOpen && (
-        <div
-          onClick={() => setDrawerOpen(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, backdropFilter: "blur(2px)" }}
+        <div onClick={() => setDrawerOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, backdropFilter: "blur(2px)" }}
         />
       )}
 
-      {/* ── MOBILE DRAWER PANEL ── */}
+      {/* ── Mobile Drawer Panel ── */}
       {isMobile && (
         <div style={{
           position: "fixed", top: 0, left: 0, height: "100vh", width: 260,
-          background: "#080d14", borderRight: "1px solid #1a2236",
+          background: "var(--cf-sidebar)", borderRight: "1px solid var(--cf-border)",
           padding: "24px 18px", display: "flex", flexDirection: "column", gap: 4,
           zIndex: 300, overflowY: "auto",
           transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
@@ -139,41 +173,42 @@ export default function App() {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
             <div>
-              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "#475569", textTransform: "uppercase", marginBottom: 3 }}>Gestión</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: "#f8fafc" }}>CashFlow</div>
+              <div style={{ fontSize: 10, letterSpacing: "0.15em", color: "var(--cf-text-dim)", textTransform: "uppercase", marginBottom: 3 }}>Gestión</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: "var(--cf-text)" }}>CashFlow</div>
             </div>
-            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", cursor: "pointer", padding: "6px 9px", borderRadius: 6, fontSize: 14 }}>✕</button>
+            <button onClick={() => setDrawerOpen(false)} style={{ background: "none", border: "1px solid var(--cf-border-mid)", color: "var(--cf-text-faint)", cursor: "pointer", padding: "6px 9px", borderRadius: 6, fontSize: 14 }}>✕</button>
           </div>
           {NAV.map(v => navBtn(v.id, v.label, v.icon))}
-          <div style={{ height: 1, background: "#111827", margin: "8px 0" }} />
+          <div style={{ height: 1, background: "var(--cf-border)", margin: "8px 0" }} />
           {NAV_BOTTOM.map(v => navBtn(v.id, v.label, v.icon))}
           {semaforoSection}
         </div>
       )}
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── Main Content ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh", minWidth: 0 }}>
 
         {/* Mobile top bar */}
         {isMobile && (
-          <div style={{ position: "sticky", top: 0, zIndex: 100, background: "#080d14", borderBottom: "1px solid #1a2236", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--cf-sidebar)", borderBottom: "1px solid var(--cf-border)", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <button onClick={() => setDrawerOpen(true)}
-                style={{ background: "none", border: "1px solid #1e293b", color: "#94a3b8", cursor: "pointer", padding: "7px 9px", borderRadius: 7, fontSize: 14, lineHeight: 1, WebkitTapHighlightColor: "transparent" }}>
+                style={{ background: "none", border: "1px solid var(--cf-border-mid)", color: "var(--cf-text-muted)", cursor: "pointer", padding: "7px 9px", borderRadius: 7, fontSize: 14, lineHeight: 1, WebkitTapHighlightColor: "transparent" }}>
                 ☰
               </button>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc", letterSpacing: "-0.02em" }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--cf-text)", letterSpacing: "-0.02em" }}>
                 {LABELS[view] || "CashFlow"}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {/* Semáforo mini */}
-              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", background: "#0d1520", border: "1px solid #1a2236", borderRadius: 6 }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: SEMAFORO_COLORS[semaforo], boxShadow: `0 0 6px ${SEMAFORO_COLORS[semaforo]}` }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono',monospace" }}>{fmt(saldo)}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", background: "var(--cf-card)", border: "1px solid var(--cf-border)", borderRadius: 6 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: SEMAFORO_COLORS[semaforo] }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--cf-text-sub)", fontFamily: "'DM Mono',monospace" }}>{fmt(saldo)}</span>
               </div>
+              <ThemeToggle theme={theme} setTheme={setTheme} compact />
               <button onClick={() => setShowGlobalAdd(true)}
-                style={{ background: "#f8fafc", color: "#060a10", border: "none", padding: "7px 12px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, WebkitTapHighlightColor: "transparent" }}>
+                style={{ background: "var(--cf-text)", color: "var(--cf-text-dark)", border: "none", padding: "7px 12px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, WebkitTapHighlightColor: "transparent" }}>
                 +
               </button>
             </div>
@@ -199,12 +234,12 @@ export default function App() {
 
         {/* Mobile bottom nav */}
         {isMobile && (
-          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "#080d14", borderTop: "1px solid #1a2236", display: "flex", justifyContent: "space-around", padding: "8px 4px 10px" }}>
-            {[...NAV.slice(0, 5)].map(v => (
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: "var(--cf-sidebar)", borderTop: "1px solid var(--cf-border)", display: "flex", justifyContent: "space-around", padding: "8px 4px 10px" }}>
+            {NAV.slice(0, 5).map(v => (
               <button key={v.id} onClick={() => navigate(v.id)}
                 style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 6px", borderRadius: 8, WebkitTapHighlightColor: "transparent", minWidth: 44 }}>
-                <span style={{ fontSize: 17, color: view === v.id ? "#f8fafc" : "#334155" }}>{v.icon}</span>
-                <span style={{ fontSize: 9, fontWeight: view === v.id ? 700 : 400, color: view === v.id ? "#94a3b8" : "#1e293b", letterSpacing: "0.05em", textTransform: "uppercase" }}>{v.label.slice(0, 6)}</span>
+                <span style={{ fontSize: 17, color: view === v.id ? "var(--cf-text)" : "var(--cf-border-hi)" }}>{v.icon}</span>
+                <span style={{ fontSize: 9, fontWeight: view === v.id ? 700 : 400, color: view === v.id ? "var(--cf-text-muted)" : "var(--cf-border-mid)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{v.label.slice(0, 6)}</span>
               </button>
             ))}
           </div>

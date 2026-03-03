@@ -90,20 +90,20 @@ function ObligModal({ oblig, cuentas, onSave, onClose }) {
         <label style={lStyle}>Certeza</label>
         <div style={{ display: "flex", gap: 8 }}>
           {[
-            { val: "CONFIRMADA", label: "Confirmada", color: "#818cf8", bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.35)" },
-            { val: "PROBABLE",   label: "Probable",   color: "#facc15", bg: "rgba(250,204,21,0.10)",  border: "rgba(250,204,21,0.30)" },
+            { val: "CONFIRMADA", label: "Confirmada", color: "var(--cf-accent)", bg: "var(--cf-accent-tint)", border: "var(--cf-accent-glow)" },
+            { val: "PROBABLE",   label: "Probable",   color: "var(--cf-warning)", bg: "var(--cf-warning-tint)",  border: "var(--cf-warning-glow)" },
           ].map(({ val, label, color, bg, border }) => (
             <button key={val} onClick={() => setForm(p => ({ ...p, certeza: val }))} style={{
               flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, border: "1px solid",
               background: form.certeza === val ? bg : "transparent",
-              borderColor: form.certeza === val ? border : "#1e293b",
-              color: form.certeza === val ? color : "#64748b",
+              borderColor: form.certeza === val ? border : "var(--cf-border-mid)",
+              color: form.certeza === val ? color : "var(--cf-text-faint)",
             }}>{label}</button>
           ))}
         </div>
       </div>
       {err && (
-        <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(248,113,113,0.1)", borderRadius: 6 }}>
+        <div style={{ color: "var(--cf-negative)", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "var(--cf-negative-tint)", borderRadius: 6 }}>
           {err}
         </div>
       )}
@@ -131,24 +131,24 @@ function PagarModal({ oblig, onConfirm, onClose }) {
 
   return (
     <Modal title="Confirmar pago" onClose={onClose} width={420}>
-      <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, padding: "12px 16px", marginBottom: 20 }}>
-        <div style={{ fontSize: 12, color: "#f87171", fontWeight: 600, marginBottom: 4 }}>Se creará un movimiento de egreso</div>
-        <div style={{ fontSize: 12, color: "#94a3b8" }}>
-          La obligación pasará a PAGADA y se registrará un egreso real por <strong style={{ color: "#f8fafc" }}>{fmtFull(oblig.monto)}</strong> en Movimientos.
+      <div style={{ background: "var(--cf-negative-tint)", border: "1px solid var(--cf-negative-glow)", borderRadius: 8, padding: "12px 16px", marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: "var(--cf-negative)", fontWeight: 600, marginBottom: 4 }}>Se creará un movimiento de egreso</div>
+        <div style={{ fontSize: 12, color: "var(--cf-text-muted)" }}>
+          La obligación pasará a PAGADA y se registrará un egreso real por <strong style={{ color: "var(--cf-text)" }}>{fmtFull(oblig.monto)}</strong> en Movimientos.
         </div>
       </div>
-      <div style={{ marginBottom: 8, fontSize: 13, color: "#94a3b8" }}>
-        <span style={{ color: "#64748b" }}>Concepto:</span> {oblig.concepto}
+      <div style={{ marginBottom: 8, fontSize: 13, color: "var(--cf-text-muted)" }}>
+        <span style={{ color: "var(--cf-text-faint)" }}>Concepto:</span> {oblig.concepto}
       </div>
-      <div style={{ marginBottom: 16, fontSize: 13, color: "#94a3b8" }}>
-        <span style={{ color: "#64748b" }}>Cuenta:</span> {oblig.cuenta} — <span style={{ color: "#64748b" }}>Categoría:</span> {oblig.categoria}
+      <div style={{ marginBottom: 16, fontSize: 13, color: "var(--cf-text-muted)" }}>
+        <span style={{ color: "var(--cf-text-faint)" }}>Cuenta:</span> {oblig.cuenta} — <span style={{ color: "var(--cf-text-faint)" }}>Categoría:</span> {oblig.categoria}
       </div>
       <div style={{ marginBottom: 20 }}>
         <label style={lStyle}>Fecha de pago</label>
         <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} style={iStyle} />
       </div>
-      {err && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(248,113,113,0.1)", borderRadius: 6 }}>{err}</div>}
-      <PrimaryBtn onClick={handlePagar} style={{ width: "100%", padding: "12px", fontSize: 14, background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)", opacity: saving ? 0.6 : 1 }}>
+      {err && <div style={{ color: "var(--cf-negative)", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "var(--cf-negative-tint)", borderRadius: 6 }}>{err}</div>}
+      <PrimaryBtn onClick={handlePagar} style={{ width: "100%", padding: "12px", fontSize: 14, background: "var(--cf-negative-tint)", color: "var(--cf-negative)", border: "1px solid var(--cf-negative-glow)", opacity: saving ? 0.6 : 1 }}>
         {saving ? "Procesando..." : "Confirmar Pago"}
       </PrimaryBtn>
     </Modal>
@@ -163,34 +163,34 @@ function ObligRow({ o, onPagar, onEdit, onDelete }) {
   const isProxima = o.estado === "PENDIENTE" && diffDays !== null && diffDays >= 0 && diffDays <= 7;
 
   const estadoBadge = o.estado === "PAGADA"
-    ? { bg: "rgba(74,222,128,0.12)", color: "#4ade80", border: "rgba(74,222,128,0.3)", label: "Pagada" }
+    ? { bg: "var(--cf-positive-tint)", color: "var(--cf-positive)", border: "var(--cf-positive-glow)", label: "Pagada" }
     : isVencida
-    ? { bg: "rgba(248,113,113,0.12)", color: "#f87171", border: "rgba(248,113,113,0.3)", label: "Vencida" }
+    ? { bg: "var(--cf-negative-tint)", color: "var(--cf-negative)", border: "var(--cf-negative-glow)", label: "Vencida" }
     : isProxima
-    ? { bg: "rgba(250,204,21,0.12)", color: "#facc15", border: "rgba(250,204,21,0.3)", label: "Próxima" }
-    : { bg: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "rgba(100,116,139,0.3)", label: "Pendiente" };
+    ? { bg: "var(--cf-warning-tint)", color: "var(--cf-warning)", border: "var(--cf-warning-glow)", label: "Próxima" }
+    : { bg: "var(--cf-neutral-tint)", color: "var(--cf-text-muted)", border: "var(--cf-neutral-glow)", label: "Pendiente" };
 
-  const rowBg = isVencida ? "rgba(248,113,113,0.03)" : isProxima ? "rgba(250,204,21,0.03)" : "transparent";
+  const rowBg = isVencida ? "var(--cf-negative-tint)" : isProxima ? "var(--cf-warning-tint)" : "transparent";
 
   return (
     <tr style={{ borderBottom: "1px solid #1a2236", background: rowBg }}>
-      <td style={{ padding: "12px 16px", fontSize: 12, color: isVencida ? "#f87171" : "#94a3b8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
+      <td style={{ padding: "12px 16px", fontSize: 12, color: isVencida ? "var(--cf-negative)" : "var(--cf-text-muted)", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
         {formatDateSafe(o.fecha_vencimiento)}
         {o.estado === "PENDIENTE" && (
-          <div style={{ fontSize: 10, color: isVencida ? "#f87171" : isProxima ? "#facc15" : "#475569", marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: isVencida ? "var(--cf-negative)" : isProxima ? "var(--cf-warning)" : "var(--cf-text-dim)", marginTop: 2 }}>
             {diffDays !== null ? (isVencida ? `hace ${Math.abs(diffDays)}d` : diffDays === 0 ? "hoy" : `en ${diffDays}d`) : ""}
           </div>
         )}
         {o.estado === "PAGADA" && o.fecha_pago && (
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: "var(--cf-text-dim)", marginTop: 2 }}>
             pagado {formatDateSafe(o.fecha_pago)}
           </div>
         )}
       </td>
-      <td style={{ padding: "12px 16px", fontSize: 13, color: "#f8fafc" }}>{o.concepto}</td>
-      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b" }}>{o.categoria}</td>
-      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b" }}>{o.cuenta}</td>
-      <td style={{ padding: "12px 16px", fontSize: 13, color: "#f87171", fontFamily: "'DM Mono', monospace", textAlign: "right" }}>
+      <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--cf-text)" }}>{o.concepto}</td>
+      <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--cf-text-faint)" }}>{o.categoria}</td>
+      <td style={{ padding: "12px 16px", fontSize: 12, color: "var(--cf-text-faint)" }}>{o.cuenta}</td>
+      <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--cf-negative)", fontFamily: "'DM Mono', monospace", textAlign: "right" }}>
         {fmtFull(o.monto)}
       </td>
       <td style={{ padding: "12px 16px" }}>
@@ -202,15 +202,15 @@ function ObligRow({ o, onPagar, onEdit, onDelete }) {
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
           {o.estado === "PENDIENTE" && (
             <>
-              <button onClick={() => onPagar(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)" }}>
+              <button onClick={() => onPagar(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontWeight: 600, background: "var(--cf-negative-tint)", color: "var(--cf-negative)", border: "1px solid var(--cf-negative-glow)" }}>
                 Pagar
               </button>
-              <button onClick={() => onEdit(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "rgba(100,116,139,0.1)", color: "#64748b", border: "1px solid #1e293b" }}>
+              <button onClick={() => onEdit(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "var(--cf-neutral-tint)", color: "var(--cf-text-faint)", border: "1px solid #1e293b" }}>
                 Editar
               </button>
             </>
           )}
-          <button onClick={() => onDelete(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "transparent", color: "#475569", border: "1px solid #1a2236" }}>
+          <button onClick={() => onDelete(o)} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "transparent", color: "var(--cf-text-dim)", border: "1px solid #1a2236" }}>
             ✕
           </button>
         </div>
@@ -261,9 +261,9 @@ export default function ObligacionesPage({ data }) {
 
   const btnStyle = (active) => ({
     padding: "6px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
-    background: active ? "rgba(248,113,113,0.15)" : "transparent",
-    color: active ? "#f87171" : "#64748b",
-    border: active ? "1px solid rgba(248,113,113,0.3)" : "1px solid #1e293b",
+    background: active ? "var(--cf-negative-tint)" : "transparent",
+    color: active ? "var(--cf-negative)" : "var(--cf-text-faint)",
+    border: active ? "1px solid var(--cf-negative-glow)" : "1px solid #1e293b",
     transition: "all 0.15s",
   });
 
@@ -280,19 +280,19 @@ export default function ObligacionesPage({ data }) {
       />
 
       {/* Métricas */}
-      <Card style={{ marginBottom: 20, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap", background: totalPendiente > 0 ? "rgba(248,113,113,0.04)" : "#0d1520", borderColor: totalPendiente > 0 ? "rgba(248,113,113,0.2)" : "#1a2236" }}>
+      <Card style={{ marginBottom: 20, display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap", background: totalPendiente > 0 ? "var(--cf-negative-tint)" : "var(--cf-card)", borderColor: totalPendiente > 0 ? "var(--cf-negative-glow)" : "var(--cf-border)" }}>
         {[
-          { label: "Total Pendiente", value: fmt(totalPendiente), color: "#f87171", sub: `${obligacionesMetricas.count_pendiente || 0} obligaciones` },
-          { label: "Saldo Neto c/ Oblig.", value: fmt(saldoConOblig), color: saldoConOblig >= 0 ? "#4ade80" : "#f87171", sub: `Saldo actual ${fmt(saldoActual)}` },
-          { label: "A liquidar (7 días)", value: aLiquidar7d > 0 ? fmt(aLiquidar7d) : "—", color: "#facc15", sub: "vencen en los próximos 7 días" },
+          { label: "Total Pendiente", value: fmt(totalPendiente), color: "var(--cf-negative)", sub: `${obligacionesMetricas.count_pendiente || 0} obligaciones` },
+          { label: "Saldo Neto c/ Oblig.", value: fmt(saldoConOblig), color: saldoConOblig >= 0 ? "var(--cf-positive)" : "var(--cf-negative)", sub: `Saldo actual ${fmt(saldoActual)}` },
+          { label: "A liquidar (7 días)", value: aLiquidar7d > 0 ? fmt(aLiquidar7d) : "—", color: "var(--cf-warning)", sub: "vencen en los próximos 7 días" },
         ].map((k, i, arr) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 32 }}>
             <div>
-              <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{k.label}</div>
+              <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{k.label}</div>
               <div style={{ fontSize: 26, fontWeight: 700, color: k.color, letterSpacing: "-0.03em", fontFamily: "'DM Mono',monospace" }}>{k.value}</div>
-              <div style={{ fontSize: 11, color: "#334155", marginTop: 4 }}>{k.sub}</div>
+              <div style={{ fontSize: 11, color: "var(--cf-border-hi)", marginTop: 4 }}>{k.sub}</div>
             </div>
-            {i < arr.length - 1 && <div style={{ width: 1, height: 50, background: "#1a2236" }} />}
+            {i < arr.length - 1 && <div style={{ width: 1, height: 50, background: "var(--cf-border)" }} />}
           </div>
         ))}
       </Card>
@@ -300,13 +300,13 @@ export default function ObligacionesPage({ data }) {
       {/* Filtros */}
       <Card style={{ marginBottom: 16, padding: "14px 20px" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>Estado:</span>
+          <span style={{ fontSize: 11, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>Estado:</span>
           {["TODOS", "PENDIENTE", "PAGADA"].map(e => (
             <button key={e} onClick={() => setFiltroEstado(e)} style={btnStyle(filtroEstado === e)}>
               {e === "TODOS" ? "Todos" : e === "PENDIENTE" ? "Pendientes" : "Pagadas"}
             </button>
           ))}
-          <div style={{ width: 1, height: 20, background: "#1e293b", margin: "0 8px" }} />
+          <div style={{ width: 1, height: 20, background: "var(--cf-border-mid)", margin: "0 8px" }} />
           <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} style={{ ...iStyle, width: "auto", padding: "6px 12px", fontSize: 12 }}>
             <option value="">Todas las categorías</option>
             {categoriasFiltro.map(c => <option key={c}>{c}</option>)}
@@ -316,7 +316,7 @@ export default function ObligacionesPage({ data }) {
             {cuentasFiltro.map(c => <option key={c}>{c}</option>)}
           </select>
           {(filtroEstado !== "TODOS" || filtroCategoria || filtroCuenta) && (
-            <button onClick={() => { setFiltroEstado("TODOS"); setFiltroCategoria(""); setFiltroCuenta(""); }} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "transparent", color: "#475569", border: "1px solid #1a2236" }}>
+            <button onClick={() => { setFiltroEstado("TODOS"); setFiltroCategoria(""); setFiltroCuenta(""); }} style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "transparent", color: "var(--cf-text-dim)", border: "1px solid #1a2236" }}>
               Limpiar filtros
             </button>
           )}
@@ -326,10 +326,10 @@ export default function ObligacionesPage({ data }) {
       {/* Tabla */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
         {obligFiltradas.length === 0 ? (
-          <div style={{ padding: 48, textAlign: "center", color: "#334155" }}>
+          <div style={{ padding: 48, textAlign: "center", color: "var(--cf-border-hi)" }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>◈</div>
             <div style={{ fontSize: 14, marginBottom: 8 }}>No hay obligaciones</div>
-            <div style={{ fontSize: 12, color: "#1e293b" }}>
+            <div style={{ fontSize: 12, color: "var(--cf-border-mid)" }}>
               {obligaciones.length === 0 ? 'Creá tu primera obligación con "+ Nueva obligación"' : "Probá cambiando los filtros"}
             </div>
           </div>
@@ -339,7 +339,7 @@ export default function ObligacionesPage({ data }) {
               <thead>
                 <tr style={{ borderBottom: "1px solid #1e293b" }}>
                   {["Vencimiento", "Concepto", "Categoría", "Cuenta", "Monto", "Estado", ""].map((h, i) => (
-                    <th key={i} style={{ padding: "12px 16px", fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", textAlign: i === 4 ? "right" : "left", fontWeight: 600 }}>{h}</th>
+                    <th key={i} style={{ padding: "12px 16px", fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", textAlign: i === 4 ? "right" : "left", fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -361,9 +361,9 @@ export default function ObligacionesPage({ data }) {
 
       {/* Totales pie de tabla */}
       {obligFiltradas.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px 0", gap: 24, fontSize: 12, color: "#475569" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px 0", gap: 24, fontSize: 12, color: "var(--cf-text-dim)" }}>
           <span>{obligFiltradas.length} registro{obligFiltradas.length !== 1 ? "s" : ""}</span>
-          <span style={{ color: "#f87171", fontFamily: "'DM Mono',monospace" }}>
+          <span style={{ color: "var(--cf-negative)", fontFamily: "'DM Mono',monospace" }}>
             Total visible: {fmtFull(obligFiltradas.filter(o => o.estado === "PENDIENTE").reduce((a, o) => a + parseFloat(o.monto), 0))} pendiente
           </span>
         </div>

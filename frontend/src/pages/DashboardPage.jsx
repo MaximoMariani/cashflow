@@ -1,279 +1,454 @@
 import { useMemo } from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, ReferenceLine,
+} from "recharts";
 import { Card, PageHeader, PrimaryBtn, SectionTitle } from "../components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS } from "../lib/utils.js";
 import { useIsMobile } from "../hooks/useIsMobile.js";
 
-const TT = ({ active, payload }) => {
+// ── Formateo de moneda ────────────────────────────────────────────────────────
+// Intl.NumberFormat para consistencia; con abreviación para millones
+const fmtARS = (n) => {
+  if (n === null || n === undefined || isNaN(n)) return "$0";
+  const num = parseFloat(n);
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000) {
+    const millon = (num / 1_000_000).toFixed(2);
+    return `$${millon}M`;
+  }
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency", currency: "ARS", maximumFractionDigits: 0,
+  }).format(num);
+};
+
+const fmtFull = (n) =>
+  new Intl.NumberFormat("es-AR", {
+    style: "currency", currency: "ARS", maximumFractionDigits: 0,
+  }).format(parseFloat(n));
+
+// ── KPI Card ─────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, sub, color, highlight = false }) {
+  const isNeg = typeof value === "number" && value < 0;
+  const displayColor = color || (isNeg ? "var(--cf-negative)" : "var(--cf-text)");
+
+  return (
+    <div style={{
+      background: highlight ? "var(--cf-card-raised)" : "var(--cf-card)",
+      border: `1px solid ${highlight ? "var(--cf-border-mid)" : "var(--cf-border)"}`,
+      borderRadius: 12,
+      padding: "18px 20px",
+      minHeight: 110,
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "space-between",
+      gap: 8,
+    }}>
+      {/* Label */}
+      <div style={{
+        fontSize: 10,
+        fontWeight: 600,
+        color: "var(--cf-text-dim)",
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        lineHeight: 1.3,
+      }}>
+        {label}
+      </div>
+
+      {/* Value */}
+      <div
+        title={typeof value === "number" ? fmtFull(value) : undefined}
+        style={{
+          fontSize: "clamp(17px, 3vw, 22px)",
+          fontWeight: 700,
+          color: displayColor,
+          fontFamily: "'DM Mono', monospace",
+          letterSpacing: "-0.02em",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          lineHeight: 1.2,
+        }}
+      >
+        {typeof value === "number" ? fmtARS(value) : value}
+      </div>
+
+      {/* Sub */}
+      {sub && (
+        <div style={{
+          fontSize: 10,
+          color: "var(--cf-text-faint)",
+          lineHeight: 1.5,
+          borderTop: "1px solid var(--cf-border)",
+          paddingTop: 8,
+          marginTop: "auto",
+        }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tooltip del gráfico ──────────────────────────────────────────────────────
+const ChartTT = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#0f172a", border: "1px solid #1e293b", padding: "10px 14px", borderRadius: 8 }}>
-      <p style={{ color: "#94a3b8", fontSize: 11, marginBottom: 4 }}>{payload[0]?.payload?.concepto}</p>
-      <p style={{ color: "#f8fafc", fontSize: 13, fontWeight: 600 }}>{fmt(payload[0]?.value)}</p>
-      {payload[0]?.payload?.futuro && <p style={{ color: "#64748b", fontSize: 10, marginTop: 2 }}>escenario</p>}
+    <div style={{
+      background: "var(--cf-overlay)", border: "1px solid var(--cf-border-mid)",
+      padding: "10px 14px", borderRadius: 8, minWidth: 140,
+    }}>
+      <p style={{ color: "var(--cf-text-faint)", fontSize: 11, marginBottom: 4 }}>
+        {payload[0]?.payload?.concepto}
+      </p>
+      <p style={{ color: "var(--cf-text)", fontSize: 13, fontWeight: 600 }}>
+        {fmtARS(payload[0]?.value)}
+      </p>
+      {payload[0]?.payload?.futuro && (
+        <p style={{ color: "var(--cf-text-dim)", fontSize: 10, marginTop: 2 }}>escenario</p>
+      )}
     </div>
   );
 };
 
-// ── Alertas de cashflow ───────────────────────────────────────────────────────
-function AlertasCashflow({ summary, umbralVerde, umbralAmarillo }) {
-  const { liquidezActual, saldoConfirmadoConObligaciones, saldoProbableConObligaciones, periodo } = summary;
-  const alertas = [];
+// ── Alerta semáforo ──────────────────────────────────────────────────────────
+function SemaforoAlerta({ summary, umbralVerde, umbralAmarillo }) {
+  const { liquidezActual, liquidezConObligaciones, liquidezProbable } = summary;
+  const sem = getSemaforo(liquidezActual, umbralVerde, umbralAmarillo);
+  const color = SEMAFORO_COLORS[sem];
 
-  const semActual = getSemaforo(liquidezActual,                  umbralVerde, umbralAmarillo);
-  const semConf   = getSemaforo(saldoConfirmadoConObligaciones, umbralVerde, umbralAmarillo);
-  const semProb   = getSemaforo(saldoProbableConObligaciones,   umbralVerde, umbralAmarillo);
-
-  if (semActual === "rojo")
-    alertas.push({ nivel: "rojo",    msg: "Liquidez critica. Accion urgente requerida." });
-  else if (semActual === "amarillo")
-    alertas.push({ nivel: "amarillo", msg: "Atencion: liquidez por debajo del umbral verde." });
-  else
-    alertas.push({ nivel: "verde",    msg: "Liquidez saludable." });
-
-  if (semConf === "rojo" && semActual !== "rojo")
-    alertas.push({ nivel: "rojo", msg: "Descontando obligaciones confirmadas, el saldo cae a zona critica." });
-  else if (semConf === "amarillo" && semActual === "verde")
-    alertas.push({ nivel: "amarillo", msg: "Obligaciones confirmadas comprimen el saldo disponible." });
-
-  if (semProb === "rojo" && semConf !== "rojo")
-    alertas.push({ nivel: "amarillo", msg: "Si se materializan las obligaciones probables, cae a zona de riesgo." });
-
-  const colors = {
-    verde:    { bg: "rgba(74,222,128,0.06)",  border: "rgba(74,222,128,0.2)",  text: "#4ade80" },
-    amarillo: { bg: "rgba(250,204,21,0.06)",  border: "rgba(250,204,21,0.2)",  text: "#facc15" },
-    rojo:     { bg: "rgba(248,113,113,0.06)", border: "rgba(248,113,113,0.2)", text: "#f87171" },
+  const msgs = {
+    verde:    "Liquidez saludable. Todos los indicadores en zona verde.",
+    amarillo: "Atención: liquidez por debajo del umbral recomendado.",
+    rojo:     "Liquidez crítica. Revisá flujos confirmados con urgencia.",
   };
 
   return (
-    <Card style={{ marginBottom: 14 }}>
-      <SectionTitle>Estado del Cashflow</SectionTitle>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {alertas.map((a, i) => {
-          const c = colors[a.nivel];
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.text, marginTop: 5, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: "#cbd5e1", lineHeight: 1.5 }}>{a.msg}</span>
-            </div>
-          );
-        })}
-        {periodo?.inicio && (
-          <div style={{ fontSize: 11, color: "#334155", paddingTop: 8, borderTop: "1px solid #111827" }}>
-            Periodo: {periodo.inicio} — {periodo.fin} ({periodo.label})
-          </div>
-        )}
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 12,
+      padding: "12px 16px",
+      background: `color-mix(in srgb, ${color} 8%, transparent)`,
+      border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+      borderRadius: 10, marginBottom: 16,
+    }}>
+      <div style={{
+        width: 8, height: 8, borderRadius: "50%",
+        background: color, boxShadow: `0 0 6px ${color}`,
+        flexShrink: 0, marginTop: 4,
+      }} />
+      <div style={{ minWidth: 0 }}>
+        <span style={{ fontSize: 12, color: "var(--cf-text-sub)", lineHeight: 1.5 }}>
+          {msgs[sem]}
+          {liquidezConObligaciones < 0 && (
+            <span style={{ color: "var(--cf-negative)", fontWeight: 600 }}>
+              {" "}Descontando obligaciones: {fmtARS(liquidezConObligaciones)}.
+            </span>
+          )}
+        </span>
+        <div style={{ fontSize: 10, color: "var(--cf-text-dim)", marginTop: 4 }}>
+          Umbral verde ≥ {fmtARS(umbralVerde)} · Umbral amarillo ≥ {fmtARS(umbralAmarillo)}
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
   const { transactions, proyecciones, dashboardSummary, financialSettings } = data;
   const isMobile = useIsMobile();
   const today = new Date().toISOString().slice(0, 10);
 
-  // Umbrales del semáforo (configurables)
-  const umbralVerde    = parseFloat(financialSettings?.umbral_verde    ?? 1000000);
-  const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200000);
+  // Semáforo umbrales
+  const umbralVerde    = parseFloat(financialSettings?.umbral_verde    ?? 1_000_000);
+  const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200_000);
 
-  // ── Métricas: todas vienen del backend (dashboardSummary) ────────────────
-  // El frontend NO recalcula nada; solo renderiza lo que devuelve /api/dashboard/summary.
+  // ── Métricas: todas del backend (dashboardSummary) ─────────────────────────
+  // El frontend NO recalcula — solo renderiza lo que devuelve /api/dashboard/summary.
   const {
-    liquidezActual             = 0,
-    fondosTotales              = 0,
-    obligacionesConfirmadas    = 0,
-    obligacionesProbables      = 0,
-    obligacionesTotales        = 0,
-    saldoConfirmadoConObligaciones = 0,
-    saldoProbableConObligaciones   = 0,
-    dineroAFavor               = 0,
-    ingresosTotalesPeriodo     = 0,
-    egresosTotalesPeriodo      = 0,
-    periodo                    = { inicio: "", fin: "", label: "Mes actual" },
+    ingresosConfirmados   = 0,
+    egresosConfirmados    = 0,
+    ingresosProbables     = 0,
+    obligacionesTotales   = 0,
+    liquidezActual        = 0,
+    liquidezConObligaciones = 0,
+    liquidezProbable      = 0,
+    periodo               = { inicio: "", fin: "", label: "Mes actual" },
   } = dashboardSummary || {};
 
   const semaforo = getSemaforo(liquidezActual, umbralVerde, umbralAmarillo);
 
-  // ── Escenarios (solo para gráfico y lista) ───────────────────────────────
-  const futuras = useMemo(() =>
-    proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
-
-  // ── Chart data ────────────────────────────────────────────────────────────
+  // ── Gráfico: evolución acumulada real + escenarios confirmados ─────────────
   const chartData = useMemo(() => {
-    const realSorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-    let r = 0;
-    const realPoints = realSorted.map(t => {
-      r += parseFloat(t.monto);
-      return { fecha: t.fecha?.slice(5, 10), concepto: t.concepto, saldo: r, futuro: false };
+    const sorted = [...transactions].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    let acc = 0;
+    const real = sorted.map(t => {
+      acc += parseFloat(t.monto);
+      return { fecha: t.fecha?.slice(5, 10), concepto: t.concepto, saldo: acc, futuro: false };
     });
-    const futureSorted = [...futuras]
-      .filter(p => p.escenario === "CONFIRMADO")
-      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
-    let f = r;
-    const futurePoints = futureSorted.map(p => {
-      f += parseFloat(p.monto);
-      return { fecha: p.fecha?.slice(5, 10), concepto: p.concepto, saldo: f, futuro: true };
-    });
-    const todayPoint = realPoints.length > 0 && futureSorted.length > 0
-      ? [{ fecha: "hoy", concepto: "Hoy", saldo: r, futuro: false }] : [];
-    return [...realPoints, ...todayPoint, ...futurePoints];
-  }, [transactions, futuras]);
 
-  // ── KPI rows ──────────────────────────────────────────────────────────────
-  // Orden exacto según spec:
-  // Fila 1 (HOY): Liquidez · Saldo confirmado · Saldo probable · Dinero a favor
-  // Fila 2 (PERÍODO): Ingresos · Egresos · Obligaciones (breakdown)
-  const kpis1 = [
+    const futuras = [...proyecciones]
+      .filter(p => p.escenario === "CONFIRMADO" && p.fecha?.slice(0, 10) >= today)
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    let facc = acc;
+    const future = futuras.map(p => {
+      facc += parseFloat(p.monto);
+      return { fecha: p.fecha?.slice(5, 10), concepto: p.concepto, saldo: facc, futuro: true };
+    });
+
+    const bridge = real.length && future.length
+      ? [{ fecha: "hoy", concepto: "Hoy", saldo: acc, futuro: false }] : [];
+
+    return [...real, ...bridge, ...future];
+  }, [transactions, proyecciones, today]);
+
+  // ── Grid responsive via inline style ─────────────────────────────────────
+  // Mobile (<640px): 1 col
+  // Tablet (640–1023px): 2 cols
+  // Desktop (≥1024px): 4 cols para fila 1, 4 cols para fila 2
+  // Se implementa via JS + useIsMobile (la app usa inline styles, sin Tailwind)
+  const isTablet = !isMobile && typeof window !== "undefined" && window.innerWidth < 1024;
+  const colsFila1 = isMobile ? 1 : isTablet ? 2 : 4;
+  const colsFila2 = isMobile ? 1 : isTablet ? 2 : 4;
+
+  const gridStyle = (cols) => ({
+    display: "grid",
+    gridTemplateColumns: `repeat(${cols}, 1fr)`,
+    gap: isMobile ? 10 : 14,
+    marginBottom: 14,
+  });
+
+  const subPeriod = periodo?.label || "Mes actual";
+
+  // ── Fila 1: métricas de liquidez (HOY) ────────────────────────────────────
+  const fila1 = [
     {
       label: "Liquidez Actual",
-      value: fmt(liquidezActual),
+      value: liquidezActual,
+      sub: "Ingresos conf. − Egresos conf.",
       color: SEMAFORO_COLORS[semaforo],
-      sub: "Σ movimientos ejecutados",
+      highlight: true,
     },
     {
-      label: "Saldo Confirmado",
-      value: fmt(saldoConfirmadoConObligaciones),
-      color: saldoConfirmadoConObligaciones >= 0 ? "#818cf8" : "#f87171",
-      sub: "Liquidez − oblig. confirmadas",
+      label: "Liquidez con Obligaciones",
+      value: liquidezConObligaciones,
+      sub: "Ingresos conf. − Egresos conf. + Obligaciones",
+      color: liquidezConObligaciones >= 0 ? "var(--cf-text-sub)" : "var(--cf-negative)",
     },
     {
-      label: "Saldo Probable",
-      value: fmt(saldoProbableConObligaciones),
-      color: saldoProbableConObligaciones >= 0 ? "#94a3b8" : "#f87171",
-      sub: "Liquidez − todas las oblig.",
-    },
-    {
-      label: "Dinero a Favor",
-      value: fmt(dineroAFavor),
-      color: dineroAFavor >= 0 ? "#4ade80" : "#f87171",
-      sub: "Liquidez + Fondos − Oblig.",
+      label: "Liquidez Probable",
+      value: liquidezProbable,
+      sub: "+ Ingresos prob. − Obligaciones",
+      color: liquidezProbable >= 0 ? "var(--cf-accent)" : "var(--cf-negative)",
     },
   ];
 
-  const kpis2 = [
+  // ── Fila 2: métricas del período ──────────────────────────────────────────
+  const fila2 = [
     {
-      label: "Ingresos del Período",
-      value: fmt(ingresosTotalesPeriodo),
-      color: "#4ade80",
-      sub: periodo?.label || "Mes actual",
+      label: "Ingresos Confirmados",
+      value: ingresosConfirmados,
+      sub: subPeriod,
+      color: "var(--cf-positive)",
     },
     {
-      label: "Egresos del Período",
-      value: fmt(egresosTotalesPeriodo),
-      color: "#f87171",
-      sub: periodo?.label || "Mes actual",
+      label: "Egresos Confirmados",
+      value: egresosConfirmados,
+      sub: subPeriod,
+      color: "var(--cf-negative)",
     },
     {
-      label: "Obligaciones",
-      value: fmt(obligacionesTotales),
-      color: obligacionesTotales > 0 ? "#facc15" : "#4ade80",
-      // Spec: mostrar breakdown textual "$X confirmadas · $Y probables"
-      sub: `${fmt(obligacionesConfirmadas)} conf. · ${fmt(obligacionesProbables)} prob.`,
-      wide: true, // ocupa 2 col en mobile
+      label: "Ingresos Probables",
+      value: ingresosProbables,
+      sub: subPeriod,
+      color: "var(--cf-warning)",
+    },
+    {
+      label: "Obligaciones Totales",
+      value: obligacionesTotales,
+      sub: "Pendientes de pago",
+      color: obligacionesTotales > 0 ? "var(--cf-warning)" : "var(--cf-positive)",
     },
   ];
-
-  const kpiCard = (k, i) => (
-    <Card key={i} style={{ padding: isMobile ? "14px" : undefined }}>
-      <div style={{ fontSize: 9, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: isMobile ? 6 : 10 }}>{k.label}</div>
-      <div style={{ fontSize: isMobile ? 15 : 20, fontWeight: 700, color: k.color, letterSpacing: "-0.02em", marginBottom: 4, fontFamily: "'DM Mono',monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.value}</div>
-      <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.4 }}>{k.sub}</div>
-    </Card>
-  );
 
   return (
-    <div>
-      <PageHeader pre="Overview" title="Dashboard" action={<PrimaryBtn onClick={onAdd}>+ Nuevo Movimiento</PrimaryBtn>} />
+    <div style={{ minWidth: 0 }}>
 
+      <PageHeader
+        pre="Overview"
+        title="Dashboard"
+        action={<PrimaryBtn onClick={onAdd}>+ Nuevo Movimiento</PrimaryBtn>}
+      />
+
+      {/* Mobile: botón add full-width */}
       {isMobile && (
-        <button onClick={onAdd} style={{ width: "100%", background: "#f8fafc", color: "#060a10", border: "none", padding: "13px", borderRadius: 10, cursor: "pointer", fontSize: 14, fontWeight: 700, marginBottom: 16, WebkitTapHighlightColor: "transparent" }}>
+        <button onClick={onAdd} style={{
+          width: "100%", background: "var(--cf-text)", color: "var(--cf-text-dark)",
+          border: "none", padding: "13px", borderRadius: 10,
+          cursor: "pointer", fontSize: 14, fontWeight: 700,
+          marginBottom: 16, WebkitTapHighlightColor: "transparent",
+        }}>
           + Nuevo Movimiento
         </button>
       )}
 
-      {/* ── Fila 1: métricas HOY ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
-        {kpis1.map(kpiCard)}
-      </div>
+      {/* ── Semáforo alerta ── */}
+      <SemaforoAlerta
+        summary={dashboardSummary || {}}
+        umbralVerde={umbralVerde}
+        umbralAmarillo={umbralAmarillo}
+      />
 
-      {/* ── Fila 2: métricas PERÍODO ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3,1fr)", gap: isMobile ? 10 : 14, marginBottom: 14 }}>
-        {kpis2.slice(0, 2).map(kpiCard)}
-        {/* Obligaciones: card ancho en mobile (span 2 cols) */}
-        <div style={{ gridColumn: isMobile ? "1 / -1" : undefined }}>
-          {kpiCard(kpis2[2], 2)}
+      {/* ── Período label ── */}
+      {periodo?.inicio && (
+        <div style={{
+          fontSize: 11, color: "var(--cf-text-dim)",
+          marginBottom: 12, letterSpacing: "0.05em",
+        }}>
+          Período: {periodo.inicio} → {periodo.fin}
         </div>
+      )}
+
+      {/* ── Fila 1: liquidez (3 cards en desktop, 2 en tablet, 1 en mobile) ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : isTablet ? "1fr 1fr" : "1fr 1fr 1fr",
+        gap: isMobile ? 10 : 14,
+        marginBottom: 14,
+      }}>
+        {fila1.map((k, i) => (
+          <KpiCard key={i} {...k} />
+        ))}
       </div>
 
-      <AlertasCashflow summary={dashboardSummary || {}} umbralVerde={umbralVerde} umbralAmarillo={umbralAmarillo} />
+      {/* ── Fila 2: métricas del período (4 cards) ── */}
+      <div style={gridStyle(colsFila2)}>
+        {fila2.map((k, i) => (
+          <KpiCard key={i} {...k} />
+        ))}
+      </div>
 
-      {/* ── Gráfico ── */}
-      <Card style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isMobile ? 12 : 16, flexWrap: "wrap", gap: 8 }}>
-          <SectionTitle>Evolucion + Escenario Confirmado</SectionTitle>
+      {/* ── Gráfico: evolución ── */}
+      <Card style={{ marginBottom: 14, minWidth: 0 }}>
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          marginBottom: isMobile ? 12 : 16, flexWrap: "wrap", gap: 8,
+        }}>
+          <SectionTitle>Evolución + Escenario Confirmado</SectionTitle>
           {!isMobile && (
-            <div style={{ display: "flex", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 20, height: 2, background: "#e2e8f0" }} /><span style={{ fontSize: 11, color: "#64748b" }}>Real</span></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 20, height: 2, background: "#818cf8" }} /><span style={{ fontSize: 11, color: "#64748b" }}>Confirmado</span></div>
+            <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--cf-text-faint)" }}>
+              <span>● Real</span>
+              <span style={{ color: "var(--cf-accent)" }}>● Confirmado</span>
             </div>
           )}
         </div>
-        <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id="sgReal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#e2e8f0" stopOpacity={0.12} />
-                <stop offset="95%" stopColor="#e2e8f0" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="#1a2236" strokeDasharray="3 3" />
-            <XAxis dataKey="fecha" tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} interval={isMobile ? "preserveStartEnd" : 0} />
-            <YAxis tick={{ fill: "#475569", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000000).toFixed(1)}M`} width={48} />
-            <Tooltip content={<TT />} />
-            <ReferenceLine x="hoy" stroke="#475569" strokeDasharray="4 4" />
-            <Area type="monotone" dataKey="saldo" stroke="#e2e8f0" strokeWidth={2} fill="url(#sgReal)"
-              dot={(props) => {
-                if (props.payload?.futuro) return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill="#818cf8" stroke="none" />;
-                return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill="#e2e8f0" stroke="none" />;
-              }}
-              activeDot={{ r: 5 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+
+        {/* overflow-x-auto para mobile */}
+        <div style={{ overflowX: "auto", minWidth: 0 }}>
+          <div style={{ minWidth: isMobile ? 300 : "100%" }}>
+            <ResponsiveContainer width="100%" height={isMobile ? 140 : 200}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="gradReal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="var(--cf-text-sub)"   stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="var(--cf-text-sub)"   stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="var(--cf-border)" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="fecha"
+                  tick={{ fill: "var(--cf-text-dim)", fontSize: 9 }}
+                  axisLine={false} tickLine={false}
+                  interval={isMobile ? "preserveStartEnd" : 0}
+                />
+                <YAxis
+                  tick={{ fill: "var(--cf-text-dim)", fontSize: 9 }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={v => `$${(v / 1_000_000).toFixed(1)}M`}
+                  width={48}
+                />
+                <Tooltip content={<ChartTT />} />
+                <ReferenceLine x="hoy" stroke="var(--cf-text-dim)" strokeDasharray="4 4" />
+                <Area
+                  type="monotone" dataKey="saldo"
+                  stroke="var(--cf-text-sub)" strokeWidth={2}
+                  fill="url(#gradReal)"
+                  dot={(props) => {
+                    const c = props.payload?.futuro ? "var(--cf-accent)" : "var(--cf-text-sub)";
+                    return <circle key={props.key} cx={props.cx} cy={props.cy} r={3} fill={c} stroke="none" />;
+                  }}
+                  activeDot={{ r: 5 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </Card>
 
       {/* ── Próximos Escenarios ── */}
       {proyecciones.length > 0 && (
         <Card style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <SectionTitle>Proximos Escenarios</SectionTitle>
-            <button onClick={onGoEscenarios} style={{ background: "none", border: "1px solid #1e293b", color: "#64748b", padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <SectionTitle>Próximos Escenarios</SectionTitle>
+            <button onClick={onGoEscenarios} style={{
+              background: "none", border: "1px solid var(--cf-border)",
+              color: "var(--cf-text-faint)", padding: "5px 12px",
+              borderRadius: 6, cursor: "pointer", fontSize: 11,
+            }}>
               Ver todos
             </button>
           </div>
+
           {[...proyecciones]
             .filter(p => p.fecha?.slice(0, 10) >= today)
             .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
             .slice(0, isMobile ? 3 : 5)
             .map((p, i, arr) => {
               const isConf = p.escenario === "CONFIRMADO";
+              const pos    = parseFloat(p.monto) > 0;
               return (
-                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none", gap: 8 }}>
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "10px 0",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--cf-border)" : "none",
+                  gap: 8, minWidth: 0,
+                }}>
                   <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: parseFloat(p.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
-                      {parseFloat(p.monto) > 0 ? "+" : "-"}
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                      background: pos ? "var(--cf-positive-tint)" : "var(--cf-negative-tint)",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
+                    }}>
+                      {pos ? "+" : "−"}
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 260 }}>{p.concepto}</div>
-                      <div style={{ fontSize: 11, color: "#475569" }}>{p.fecha?.slice(0, 10)}</div>
+                      <div style={{
+                        fontSize: 13, fontWeight: 500, color: "var(--cf-text-sub)",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        maxWidth: isMobile ? 140 : 260,
+                      }}>
+                        {p.concepto}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--cf-text-dim)" }}>
+                        {p.fecha?.slice(0, 10)}
+                      </div>
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: parseFloat(p.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace" }}>
-                      {parseFloat(p.monto) > 0 ? "+" : ""}{fmt(p.monto)}
+                    <div style={{
+                      fontSize: 13, fontWeight: 600,
+                      color: pos ? "var(--cf-positive)" : "var(--cf-negative)",
+                      fontFamily: "'DM Mono', monospace",
+                    }}>
+                      {pos ? "+" : ""}{fmtARS(p.monto)}
                     </div>
-                    <div style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: isConf ? "rgba(99,102,241,0.12)" : "rgba(250,204,21,0.1)", color: isConf ? "#818cf8" : "#facc15", fontWeight: 600 }}>
+                    <div style={{
+                      fontSize: 10, padding: "1px 5px", borderRadius: 3, fontWeight: 600,
+                      background: isConf ? "var(--cf-accent-tint)" : "var(--cf-warning-tint)",
+                      color:      isConf ? "var(--cf-accent)"      : "var(--cf-warning)",
+                    }}>
                       {isConf ? "Conf." : "Prob."}
                     </div>
                   </div>
@@ -285,23 +460,57 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
 
       {/* ── Últimos Movimientos ── */}
       <Card>
-        <SectionTitle>Ultimos Movimientos</SectionTitle>
-        {[...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, isMobile ? 4 : 5).map((t, i, arr) => (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #111827" : "none", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: parseFloat(t.monto) > 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
-                {parseFloat(t.monto) > 0 ? "+" : "-"}
+        <SectionTitle>Últimos Movimientos</SectionTitle>
+        {[...transactions]
+          .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+          .slice(0, isMobile ? 4 : 5)
+          .map((t, i, arr) => {
+            const pos = parseFloat(t.monto) > 0;
+            return (
+              <div key={t.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "10px 0",
+                borderBottom: i < arr.length - 1 ? "1px solid var(--cf-border)" : "none",
+                gap: 8, minWidth: 0,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, minWidth: 0 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+                    background: pos ? "var(--cf-positive-tint)" : "var(--cf-negative-tint)",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12,
+                  }}>
+                    {pos ? "+" : "−"}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 500, color: "var(--cf-text-sub)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      maxWidth: isMobile ? 140 : 260,
+                    }}>
+                      {t.concepto}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--cf-text-dim)" }}>
+                      {t.categoria}
+                      {t.certeza === "PROBABLE" && (
+                        <span style={{ marginLeft: 6, color: "var(--cf-warning)", fontWeight: 600 }}>
+                          · Probable
+                        </span>
+                      )}
+                      {" · "}{t.fecha?.slice(0, 10)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: 600,
+                  color: pos ? "var(--cf-positive)" : "var(--cf-negative)",
+                  fontFamily: "'DM Mono', monospace",
+                  flexShrink: 0,
+                }}>
+                  {pos ? "+" : ""}{fmtARS(t.monto)}
+                </div>
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 140 : 260 }}>{t.concepto}</div>
-                <div style={{ fontSize: 11, color: "#475569" }}>{t.categoria} · {t.fecha?.slice(0, 10)}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: parseFloat(t.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace", flexShrink: 0 }}>
-              {parseFloat(t.monto) > 0 ? "+" : ""}{fmt(t.monto)}
-            </div>
-          </div>
-        ))}
+            );
+          })}
       </Card>
     </div>
   );

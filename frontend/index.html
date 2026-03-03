@@ -7,17 +7,157 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
     <style>
+      /* ── Base reset ─────────────────────────────────────────────────────── */
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html { -webkit-text-size-adjust: 100%; }
-      body { background: #060a10; color: #f8fafc; font-family: 'DM Sans', 'Helvetica Neue', sans-serif; }
-      ::-webkit-scrollbar { width: 6px; } 
-      ::-webkit-scrollbar-track { background: #080d14; }
-      ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+
+      /* ── Theme transition (200ms, only after first paint) ────────────────── */
+      html.theme-ready * {
+        transition:
+          background-color 200ms ease,
+          border-color 200ms ease,
+          color 200ms ease,
+          box-shadow 200ms ease !important;
+      }
+
+      /* ── Dark theme (default) ────────────────────────────────────────────── */
+      :root,
+      html.dark {
+        color-scheme: dark;
+
+        /* Backgrounds */
+        --cf-bg:          #060a10;   /* page background */
+        --cf-sidebar:     #080d14;   /* sidebar / topbar */
+        --cf-card:        #0d1520;   /* card background */
+        --cf-card-raised: #111827;   /* hover row, elevated surface */
+        --cf-input:       #111827;   /* input background */
+        --cf-overlay:     #0f172a;   /* tooltip, dropdown */
+
+        /* Borders */
+        --cf-border:      #1a2236;   /* default border */
+        --cf-border-mid:  #1e293b;   /* mid border */
+        --cf-border-hi:   #334155;   /* high-contrast border */
+
+        /* Text */
+        --cf-text:        #f8fafc;   /* primary text */
+        --cf-text-sub:    #e2e8f0;   /* secondary text */
+        --cf-text-muted:  #94a3b8;   /* muted text */
+        --cf-text-faint:  #64748b;   /* very muted */
+        --cf-text-dim:    #475569;   /* dimmed labels */
+        --cf-text-ghost:  #334155;   /* ghost text */
+        --cf-text-dark:   #060a10;   /* text on light bg (primary btn) */
+
+        /* Brand */
+        --cf-positive:    #4ade80;   /* green / ingreso */
+        --cf-negative:    #f87171;   /* red / egreso */
+        --cf-warning:     #facc15;   /* yellow / warning */
+        --cf-accent:      #818cf8;   /* indigo / confirmado */
+
+        /* Scrollbar */
+        --cf-scroll-track: #080d14;
+        --cf-scroll-thumb: #1e293b;
+        /* Semantic tints (alpha backgrounds for badges, alerts, rows) */
+        --cf-positive-tint:  rgba(74,222,128,0.1);
+        --cf-positive-glow:  rgba(74,222,128,0.2);
+        --cf-negative-tint:  rgba(248,113,113,0.1);
+        --cf-negative-glow:  rgba(248,113,113,0.2);
+        --cf-warning-tint:   rgba(250,204,21,0.1);
+        --cf-warning-glow:   rgba(250,204,21,0.2);
+        --cf-accent-tint:    rgba(99,102,241,0.12);
+        --cf-accent-glow:    rgba(99,102,241,0.3);
+        --cf-neutral-tint:   rgba(100,116,139,0.1);
+        --cf-neutral-glow:   rgba(100,116,139,0.2);
+      }
+
+      /* ── Light theme ─────────────────────────────────────────────────────── */
+      html.light {
+        color-scheme: light;
+
+        /* Backgrounds */
+        --cf-bg:          #f1f5f9;
+        --cf-sidebar:     #ffffff;
+        --cf-card:        #ffffff;
+        --cf-card-raised: #f8fafc;
+        --cf-input:       #f8fafc;
+        --cf-overlay:     #ffffff;
+
+        /* Borders */
+        --cf-border:      #e2e8f0;
+        --cf-border-mid:  #cbd5e1;
+        --cf-border-hi:   #94a3b8;
+
+        /* Text */
+        --cf-text:        #0f172a;
+        --cf-text-sub:    #1e293b;
+        --cf-text-muted:  #475569;
+        --cf-text-faint:  #64748b;
+        --cf-text-dim:    #94a3b8;
+        --cf-text-ghost:  #cbd5e1;
+        --cf-text-dark:   #0f172a;
+
+        /* Brand — slightly deeper for light bg readability */
+        --cf-positive:    #16a34a;
+        --cf-negative:    #dc2626;
+        --cf-warning:     #d97706;
+        --cf-accent:      #6366f1;
+
+        /* Scrollbar */
+        --cf-scroll-track: #f1f5f9;
+        --cf-scroll-thumb: #cbd5e1;
+        /* Semantic tints */
+        --cf-positive-tint:  rgba(22,163,74,0.1);
+        --cf-positive-glow:  rgba(22,163,74,0.2);
+        --cf-negative-tint:  rgba(220,38,38,0.1);
+        --cf-negative-glow:  rgba(220,38,38,0.2);
+        --cf-warning-tint:   rgba(217,119,6,0.1);
+        --cf-warning-glow:   rgba(217,119,6,0.2);
+        --cf-accent-tint:    rgba(99,102,241,0.1);
+        --cf-accent-glow:    rgba(99,102,241,0.25);
+        --cf-neutral-tint:   rgba(100,116,139,0.08);
+        --cf-neutral-glow:   rgba(100,116,139,0.15);
+      }
+
+      /* ── Global body ─────────────────────────────────────────────────────── */
+      body {
+        background: var(--cf-bg);
+        color: var(--cf-text);
+        font-family: 'DM Sans', 'Helvetica Neue', sans-serif;
+      }
+
+      /* ── Scrollbar ───────────────────────────────────────────────────────── */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: var(--cf-scroll-track); }
+      ::-webkit-scrollbar-thumb { background: var(--cf-scroll-thumb); border-radius: 3px; }
+
+      /* ── Mobile helpers ──────────────────────────────────────────────────── */
       input, select, textarea { font-size: 16px !important; }
       button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
       * { -webkit-overflow-scrolling: touch; }
     </style>
+
+    <!--
+      Anti-flash script: runs SYNCHRONOUSLY before React mounts.
+      Reads localStorage and applies theme class to <html> immediately,
+      preventing the white/dark flash on page reload.
+      NOTE: Must be inline (not deferred) to execute before first paint.
+    -->
+    <script>
+      (function() {
+        var stored = localStorage.getItem('cashflow-theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = stored === 'light' ? 'light'
+                  : stored === 'dark'  ? 'dark'
+                  : prefersDark        ? 'dark'   // system default
+                  : 'dark';                        // fallback default = dark
+        document.documentElement.classList.add(theme);
+        // Add theme-ready AFTER first class apply (enables transitions only post-mount)
+        requestAnimationFrame(function() {
+          document.documentElement.classList.add('theme-ready');
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -23,27 +23,27 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#060a10", display: "flex",
+      minHeight: "100vh", background: "var(--cf-bg)", display: "flex",
       alignItems: "center", justifyContent: "center",
       fontFamily: "'DM Sans','Helvetica Neue',sans-serif"
     }}>
       {/* Ambient glow */}
-      <div style={{ position: "fixed", top: "20%", left: "50%", transform: "translateX(-50%)", width: 400, height: 400, background: "radial-gradient(circle, rgba(148,163,184,0.04) 0%, transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ position: "fixed", top: "20%", left: "50%", transform: "translateX(-50%)", width: 400, height: 400, background: "radial-gradient(circle, var(--cf-neutral-tint) 0%, transparent 70%)", pointerEvents: "none" }} />
 
       <div style={{ width: 380, padding: "0 24px" }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, background: "#080d14", border: "1px solid #1e293b", borderRadius: 16, marginBottom: 20 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, background: "var(--cf-sidebar)", border: "1px solid var(--cf-border-mid)", borderRadius: 16, marginBottom: 20 }}>
             <span style={{ fontSize: 24 }}>◉</span>
           </div>
-          <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#475569", textTransform: "uppercase", marginBottom: 6 }}>Gestión</div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#f8fafc", letterSpacing: "-0.03em" }}>CashFlow</div>
+          <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "var(--cf-text-dim)", textTransform: "uppercase", marginBottom: 6 }}>Gestión</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "var(--cf-text)", letterSpacing: "-0.03em" }}>CashFlow</div>
         </div>
 
         {/* Card */}
-        <div style={{ background: "#0d1520", border: "1px solid #1a2236", borderRadius: 16, padding: "32px" }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#e2e8f0", marginBottom: 6 }}>Iniciá sesión</div>
-          <div style={{ fontSize: 12, color: "#475569", marginBottom: 28 }}>Acceso interno — Oficina</div>
+        <div style={{ background: "var(--cf-card)", border: "1px solid #1a2236", borderRadius: 16, padding: "32px" }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--cf-text-sub)", marginBottom: 6 }}>Iniciá sesión</div>
+          <div style={{ fontSize: 12, color: "var(--cf-text-dim)", marginBottom: 28 }}>Acceso interno — Oficina</div>
 
           <div style={{ marginBottom: 16 }}>
             <label style={lStyle}>Usuario</label>
@@ -71,7 +71,7 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           {err && (
-            <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: "#f87171" }}>
+            <div style={{ background: "var(--cf-negative-tint)", border: "1px solid var(--cf-negative-glow)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 12, color: "var(--cf-negative)" }}>
               {err}
             </div>
           )}
@@ -80,8 +80,8 @@ export default function LoginPage({ onLogin }) {
             onClick={handleSubmit}
             disabled={loading}
             style={{
-              width: "100%", background: loading ? "#1e293b" : "#f8fafc",
-              color: loading ? "#475569" : "#060a10",
+              width: "100%", background: loading ? "var(--cf-border-mid)" : "var(--cf-text)",
+              color: loading ? "var(--cf-text-dim)" : "var(--cf-bg)",
               border: "none", padding: "13px", borderRadius: 8,
               cursor: loading ? "default" : "pointer",
               fontSize: 14, fontWeight: 700, transition: "all 0.2s",
@@ -91,7 +91,7 @@ export default function LoginPage({ onLogin }) {
           </button>
         </div>
 
-        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "#1e293b" }}>
+        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "var(--cf-border-mid)" }}>
           Acceso restringido — Solo personal autorizado
         </div>
       </div>

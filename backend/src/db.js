@@ -130,6 +130,27 @@ async function initDB() {
     `);
 
 
+
+    // ── Migración: columna certeza en transactions ───────────────────────────
+    // Requerida por spec: liquidezActual = ingresosConf − egresosConf
+    // certeza ∈ {'CONFIRMADO','PROBABLE'} — default CONFIRMADO (conservador:
+    // todos los movimientos existentes son tratados como confirmados).
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'transactions' AND column_name = 'certeza'
+        ) THEN
+          ALTER TABLE transactions
+            ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADO';
+          ALTER TABLE transactions
+            ADD CONSTRAINT transactions_certeza_check
+            CHECK (certeza IN ('CONFIRMADO','PROBABLE'));
+        END IF;
+      END$$;
+    `);
+
     // ── Migración: columna balance_actual en cuentas ────────────────────────
     // Requerida por spec: liquidezActual = Σ cuentas.balance_actual (foto de hoy).
     // Esta columna representa el saldo real de cada cuenta (actualizado manualmente

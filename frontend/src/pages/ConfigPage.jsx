@@ -23,7 +23,7 @@ function SemaforoPreview({ verde, amarillo }) {
           }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 8px ${col}` }} />
             <div style={{ fontSize: 11, color: col, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
-            <div style={{ fontSize: 10, color: "#475569", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textAlign: "center" }}>
               {label === "Verde"    && `≥ ${fmt(verde)}`}
               {label === "Amarillo" && `≥ ${fmt(amarillo)} y < ${fmt(verde)}`}
               {label === "Rojo"     && `< ${fmt(amarillo)}`}
@@ -86,11 +86,11 @@ export default function ConfigPage({ data }) {
         <Card>
           {/* Header de sección */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>
               Parámetros financieros
             </div>
-            <div style={{ fontSize: 14, color: "#e2e8f0", fontWeight: 600 }}>Semáforo de Caja</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, color: "var(--cf-text-sub)", fontWeight: 600 }}>Semáforo de Caja</div>
+            <div style={{ fontSize: 12, color: "var(--cf-text-faint)", marginTop: 4, lineHeight: 1.5 }}>
               Definí los umbrales que determinan cuándo el saldo es saludable, en riesgo o crítico.
             </div>
           </div>
@@ -98,7 +98,7 @@ export default function ConfigPage({ data }) {
           {/* Umbral Verde */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ ...lStyle, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 6px #4ade80" }} />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cf-positive)", display: "inline-block", boxShadow: "0 0 6px #4ade80" }} />
               Umbral Verde — saldo saludable ($)
             </label>
             <input
@@ -108,10 +108,10 @@ export default function ConfigPage({ data }) {
               placeholder="1000000"
               style={{
                 ...iStyle,
-                borderColor: verde && parseFloat(verde) <= (parseFloat(amarillo) || 0) ? "rgba(248,113,113,0.5)" : "#1e293b"
+                borderColor: verde && parseFloat(verde) <= (parseFloat(amarillo) || 0) ? "var(--cf-negative-glow)" : "var(--cf-border-mid)"
               }}
             />
-            <div style={{ fontSize: 11, color: "#334155", marginTop: 5 }}>
+            <div style={{ fontSize: 11, color: "var(--cf-border-hi)", marginTop: 5 }}>
               Saldo ≥ {verdeParsed > 0 ? fmt(verdeParsed) : "…"} → verde
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function ConfigPage({ data }) {
           {/* Umbral Amarillo */}
           <div style={{ marginBottom: 24 }}>
             <label style={{ ...lStyle, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#facc15", display: "inline-block", boxShadow: "0 0 6px #facc15" }} />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cf-warning)", display: "inline-block", boxShadow: "0 0 6px #facc15" }} />
               Umbral Amarillo — saldo en riesgo ($)
             </label>
             <input
@@ -129,21 +129,21 @@ export default function ConfigPage({ data }) {
               placeholder="200000"
               style={{
                 ...iStyle,
-                borderColor: amarillo && parseFloat(amarillo) >= (parseFloat(verde) || 0) ? "rgba(248,113,113,0.5)" : "#1e293b"
+                borderColor: amarillo && parseFloat(amarillo) >= (parseFloat(verde) || 0) ? "var(--cf-negative-glow)" : "var(--cf-border-mid)"
               }}
             />
-            <div style={{ fontSize: 11, color: "#334155", marginTop: 5 }}>
+            <div style={{ fontSize: 11, color: "var(--cf-border-hi)", marginTop: 5 }}>
               Saldo ≥ {amarilloParsed > 0 ? fmt(amarilloParsed) : "…"} y &lt; {verdeParsed > 0 ? fmt(verdeParsed) : "…"} → amarillo
             </div>
           </div>
 
           {/* Zona roja informativa */}
-          <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 8, padding: "10px 14px", marginBottom: 20 }}>
+          <div style={{ background: "var(--cf-negative-tint)", border: "1px solid var(--cf-negative-tint)", borderRadius: 8, padding: "10px 14px", marginBottom: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f87171", flexShrink: 0, boxShadow: "0 0 6px #f87171" }} />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cf-negative)", flexShrink: 0, boxShadow: "0 0 6px #f87171" }} />
               <div>
-                <div style={{ fontSize: 12, color: "#f87171", fontWeight: 600 }}>Zona Roja — liquidez crítica</div>
-                <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: "var(--cf-negative)", fontWeight: 600 }}>Zona Roja — liquidez crítica</div>
+                <div style={{ fontSize: 11, color: "var(--cf-text-dim)", marginTop: 2 }}>
                   Saldo &lt; {amarilloParsed > 0 ? fmt(amarilloParsed) : "umbral amarillo"} → rojo (calculado automáticamente)
                 </div>
               </div>
@@ -152,15 +152,15 @@ export default function ConfigPage({ data }) {
 
           {/* Error */}
           {err && (
-            <div style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: "#f87171" }}>⚠ {err}</div>
+            <div style={{ background: "var(--cf-negative-tint)", border: "1px solid var(--cf-negative-glow)", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "var(--cf-negative)" }}>⚠ {err}</div>
             </div>
           )}
 
           {/* Éxito */}
           {success && (
-            <div style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: "#4ade80" }}>✓ Configuración guardada correctamente.</div>
+            <div style={{ background: "var(--cf-positive-tint)", border: "1px solid var(--cf-positive-glow)", borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "var(--cf-positive)" }}>✓ Configuración guardada correctamente.</div>
             </div>
           )}
 
@@ -169,14 +169,14 @@ export default function ConfigPage({ data }) {
             disabled={saving || !valid}
             style={{
               width: "100%", padding: "12px", borderRadius: 8, border: "none",
-              background: valid ? "rgba(99,102,241,0.15)" : "#111827",
-              border: `1px solid ${valid ? "rgba(99,102,241,0.4)" : "#1e293b"}`,
-              color: valid ? "#818cf8" : "#334155",
+              background: valid ? "var(--cf-accent-tint)" : "var(--cf-card-raised)",
+              border: `1px solid ${valid ? "var(--cf-accent-glow)" : "var(--cf-border-mid)"}`,
+              color: valid ? "var(--cf-accent)" : "var(--cf-border-hi)",
               fontSize: 14, fontWeight: 700, cursor: valid ? "pointer" : "not-allowed",
               transition: "all 0.15s", opacity: saving ? 0.6 : 1
             }}
-            onMouseEnter={e => { if (valid && !saving) { e.currentTarget.style.background = "rgba(99,102,241,0.25)"; }}}
-            onMouseLeave={e => { if (valid) { e.currentTarget.style.background = "rgba(99,102,241,0.15)"; }}}
+            onMouseEnter={e => { if (valid && !saving) { e.currentTarget.style.background = "var(--cf-accent-glow)"; }}}
+            onMouseLeave={e => { if (valid) { e.currentTarget.style.background = "var(--cf-accent-tint)"; }}}
           >
             {saving ? "Guardando…" : "Guardar parámetros"}
           </button>
@@ -187,13 +187,13 @@ export default function ConfigPage({ data }) {
 
           {/* Preview visual */}
           <Card>
-            <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>
               Vista previa del semáforo
             </div>
             {valid
               ? <SemaforoPreview verde={verde} amarillo={amarillo} />
               : (
-                <div style={{ padding: "20px", textAlign: "center", color: "#334155", fontSize: 12 }}>
+                <div style={{ padding: "20px", textAlign: "center", color: "var(--cf-border-hi)", fontSize: 12 }}>
                   Ingresá valores válidos para ver la vista previa.
                 </div>
               )
@@ -202,18 +202,18 @@ export default function ConfigPage({ data }) {
 
           {/* Valores actuales guardados */}
           <Card>
-            <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 14 }}>
               Configuración actual guardada
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { label: "Umbral Verde",    value: financialSettings?.umbral_verde,    color: "#4ade80" },
-                { label: "Umbral Amarillo", value: financialSettings?.umbral_amarillo, color: "#facc15" },
+                { label: "Umbral Verde",    value: financialSettings?.umbral_verde,    color: "var(--cf-positive)" },
+                { label: "Umbral Amarillo", value: financialSettings?.umbral_amarillo, color: "var(--cf-warning)" },
               ].map(({ label, value, color }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#111827", borderRadius: 8 }}>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, boxShadow: `0 0 5px ${color}` }} />
-                    <span style={{ fontSize: 12, color: "#64748b" }}>{label}</span>
+                    <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>{label}</span>
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 700, color, fontFamily: "'DM Mono',monospace" }}>
                     {value != null ? fmt(parseFloat(value)) : "—"}
@@ -221,7 +221,7 @@ export default function ConfigPage({ data }) {
                 </div>
               ))}
               {financialSettings?.updated_at && (
-                <div style={{ fontSize: 10, color: "#334155", marginTop: 4, textAlign: "right" }}>
+                <div style={{ fontSize: 10, color: "var(--cf-border-hi)", marginTop: 4, textAlign: "right" }}>
                   Última actualización: {new Date(financialSettings.updated_at).toLocaleString("es-AR")}
                 </div>
               )}
@@ -229,9 +229,9 @@ export default function ConfigPage({ data }) {
           </Card>
 
           {/* Nota informativa */}
-          <div style={{ background: "#080d14", border: "1px solid #1a2236", borderRadius: 10, padding: "14px 16px" }}>
-            <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6 }}>
-              <strong style={{ color: "#64748b" }}>¿Cómo impacta?</strong><br />
+          <div style={{ background: "var(--cf-sidebar)", border: "1px solid #1a2236", borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ fontSize: 11, color: "var(--cf-text-dim)", lineHeight: 1.6 }}>
+              <strong style={{ color: "var(--cf-text-faint)" }}>¿Cómo impacta?</strong><br />
               Los umbrales se aplican en tiempo real al semáforo del sidebar, a los KPIs del Dashboard y a las alertas de cashflow.
               Si no configuraste valores, el sistema usa los defaults: Verde ≥ $1M, Amarillo ≥ $200K.
             </div>
