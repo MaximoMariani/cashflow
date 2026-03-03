@@ -37,7 +37,7 @@ function getPeriodo(query) {
 //   obligacionesTotales = Σ obligaciones.monto WHERE estado='PENDIENTE'
 //
 //   liquidezActual           = ingresosConfirmados − egresosConfirmados
-//   liquidezConObligaciones  = ingresosConfirmados − egresosConfirmados + obligacionesTotales
+//   liquidezConObligaciones  = ingresosConfirmados − egresosConfirmados − obligacionesTotales  ← obligaciones SIEMPRE restan
 //   liquidezProbable         = ingresosConfirmados − egresosConfirmados + ingresosProbables − obligacionesTotales
 //
 // Performance: 2 queries paralelas (Promise.all) — no roundtrips secuenciales.
@@ -84,8 +84,13 @@ router.get("/summary", async (req, res) => {
     const obligacionesTotales = toNum(q2.rows[0].obligaciones_totales);
 
     // Fórmulas exactas según spec (NO modificar)
+    // Test manual rápido (valores del ejemplo en spec):
+    //   ingresosConfirmados=2.82M, egresosConfirmados=1.32M, obligacionesTotales=7.30M, ingresosProbables=5.00M
+    //   liquidezActual           = 2.82 − 1.32           =  1.50M  ✓
+    //   liquidezConObligaciones  = 1.50 − 7.30           = −5.80M  ✓  (obligaciones SIEMPRE restan)
+    //   liquidezProbable         = 1.50 + 5.00 − 7.30   = −0.80M  ✓
     const liquidezActual          = ingresosConfirmados - egresosConfirmados;
-    const liquidezConObligaciones = ingresosConfirmados - egresosConfirmados + obligacionesTotales;
+    const liquidezConObligaciones = ingresosConfirmados - egresosConfirmados - obligacionesTotales;
     const liquidezProbable        = ingresosConfirmados - egresosConfirmados + ingresosProbables - obligacionesTotales;
 
     res.json({
