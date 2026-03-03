@@ -114,7 +114,7 @@ const ChartTT = ({ active, payload }) => {
 
 // ── Alerta semáforo ──────────────────────────────────────────────────────────
 function SemaforoAlerta({ summary, umbralVerde, umbralAmarillo }) {
-  const { liquidezActual, liquidezConObligaciones, liquidezProbable } = summary;
+  const { liquidezActual, liquidezConObligaciones } = summary;
   const sem = getSemaforo(liquidezActual, umbralVerde, umbralAmarillo);
   const color = SEMAFORO_COLORS[sem];
 
@@ -173,7 +173,6 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
     obligacionesTotales   = 0,
     liquidezActual        = 0,
     liquidezConObligaciones = 0,
-    liquidezProbable      = 0,
     periodo               = { inicio: "", fin: "", label: "Mes actual" },
   } = dashboardSummary || {};
 
@@ -222,7 +221,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
 
   const subPeriod = periodo?.label || "Mes actual";
 
-  // ── Fila 1: métricas de liquidez (HOY) ────────────────────────────────────
+  // ── Fila 1: liquidez (Liquidez actual · Liquidez c/oblig. · Obligaciones totales) ──
   const fila1 = [
     {
       label: "Liquidez Actual",
@@ -234,18 +233,18 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
     {
       label: "Liquidez con Obligaciones",
       value: liquidezConObligaciones,
-      sub: "Ingresos conf. − Egresos conf. + Obligaciones",
+      sub: "Ingresos conf. − Egresos conf. − Obligaciones",
       color: liquidezConObligaciones >= 0 ? "var(--cf-text-sub)" : "var(--cf-negative)",
     },
     {
-      label: "Liquidez Probable",
-      value: liquidezProbable,
-      sub: "+ Ingresos prob. − Obligaciones",
-      color: liquidezProbable >= 0 ? "var(--cf-accent)" : "var(--cf-negative)",
+      label: "Obligaciones Totales",
+      value: obligacionesTotales,
+      sub: "Pendientes de pago",
+      color: obligacionesTotales > 0 ? "var(--cf-warning)" : "var(--cf-positive)",
     },
   ];
 
-  // ── Fila 2: métricas del período ──────────────────────────────────────────
+  // ── Fila 2: flujos del período (Ing. conf. · Egr. conf. · Ing. prob.) ─────
   const fila2 = [
     {
       label: "Ingresos Confirmados",
@@ -262,14 +261,8 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
     {
       label: "Ingresos Probables",
       value: ingresosProbables,
-      sub: subPeriod,
+      sub: "Movimientos + Escenarios probables",
       color: "var(--cf-warning)",
-    },
-    {
-      label: "Obligaciones Totales",
-      value: obligacionesTotales,
-      sub: "Pendientes de pago",
-      color: obligacionesTotales > 0 ? "var(--cf-warning)" : "var(--cf-positive)",
     },
   ];
 
@@ -311,7 +304,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         </div>
       )}
 
-      {/* ── Fila 1: liquidez (3 cards en desktop, 2 en tablet, 1 en mobile) ── */}
+      {/* ── Fila 1: liquidez — 3 cols desktop, 2 tablet, 1 mobile ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr" : isTablet ? "1fr 1fr" : "1fr 1fr 1fr",
@@ -323,8 +316,13 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
         ))}
       </div>
 
-      {/* ── Fila 2: métricas del período (4 cards) ── */}
-      <div style={gridStyle(colsFila2)}>
+      {/* ── Fila 2: flujos del período — mismo grid ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : isTablet ? "1fr 1fr" : "1fr 1fr 1fr",
+        gap: isMobile ? 10 : 14,
+        marginBottom: 14,
+      }}>
         {fila2.map((k, i) => (
           <KpiCard key={i} {...k} />
         ))}

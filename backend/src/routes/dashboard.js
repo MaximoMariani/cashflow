@@ -29,31 +29,43 @@ function getPeriodo(query) {
 //     WHERE tipo='Ingreso' AND certeza='CONFIRMADO' AND fecha ∈ [inicio,fin]
 //
 //   egresosConfirmados  = Σ ABS(transactions.monto)
-//     WHERE tipo='Egreso'  AND certeza='CONFIRMADO' AND fecha ∈ [inicio,fin]
+//     WHERE tipo='Egreso' AND certeza='CONFIRMADO' AND fecha ∈ [inicio,fin]
 //
-//   ingresosProbables   = Σ transactions.monto
-//     WHERE tipo='Ingreso' AND certeza='PROBABLE'   AND fecha ∈ [inicio,fin]
+//   ingresosProbables = Σ transactions.monto (tipo='Ingreso' AND certeza='PROBABLE')
+//                     + Σ proyecciones.monto (tipo='Ingreso' AND escenario='PROBABLE')
+//     — ambas fuentes dentro del período [inicio, fin]
+//
+//   CAUSA DEL BUG ANTERIOR: ingresosProbables solo consultaba `transactions`.
+//   Los $5M viven en `proyecciones` (tabla de Escenarios), nunca se sumaban.
 //
 //   obligacionesTotales = Σ obligaciones.monto WHERE estado='PENDIENTE'
 //
-//   liquidezActual           = ingresosConfirmados − egresosConfirmados
-//   liquidezConObligaciones  = ingresosConfirmados − egresosConfirmados − obligacionesTotales  ← obligaciones SIEMPRE restan
-//   liquidezProbable         = ingresosConfirmados − egresosConfirmados + ingresosProbables − obligacionesTotales
+//   liquidezActual          = ingresosConfirmados − egresosConfirmados
+//   liquidezConObligaciones = ingresosConfirmados − egresosConfirmados − obligacionesTotales
+//     (obligaciones SIEMPRE restan)
 //
-// Performance: 2 queries paralelas (Promise.all) — no roundtrips secuenciales.
-//   Q1: 3 agregaciones sobre transactions (una sola pasada)
-//   Q2: 1 agregación sobre obligaciones
+// Performance: 3 queries paralelas (Promise.all)
+//   Q1: transactions  — ingresos conf + egresos conf + ingresos prob tx
+//   Q2: proyecciones  — ingresos prob escenarios
+//   Q3: obligaciones  — totales pendientes
+//
+// Test manual:
+//   ingresosConfirmados=2.82M, egresosConfirmados=1.32M,
+//   ingresosProbables=5.00M (escenarios), obligacionesTotales=7.30M
+//   liquidezActual          = 2.82 − 1.32        =  1.50M  ✓
+//   liquidezConObligaciones = 1.50 − 7.30        = −5.80M  ✓
+//   ingresosProbables       =        5.00M                 ✓
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/summary", async (req, res) => {
   try {
     const { inicio, fin } = getPeriodo(req.query);
 
-    const [q1, q2] = await Promise.all([
-      // Q1 — transactions: ingresos conf, egresos conf, ingresos prob — todo en una pasada
+    const [q1, q2, q3] = await Promise.all([
+      // Q1 — transactions: ingresos conf, egresos conf, ingresos prob tx (una sola pasada)
       pool.query(`
         SELECT
           COALESCE(SUM(
-            CASE WHEN tipo = 'Ingreso' AND certeza = 'CONFIRMADO' THEN monto ELSE 0 END
+            CASE WHEN tipo = 'Ingreso' AND certeza = 'CONFIRMADO' THEN monto    ELSE 0 END
           ), 0) AS ingresos_conf,
 
           COALESCE(SUM(
@@ -61,15 +73,27 @@ router.get("/summary", async (req, res) => {
           ), 0) AS egresos_conf,
 
           COALESCE(SUM(
-            CASE WHEN tipo = 'Ingreso' AND certeza = 'PROBABLE'   THEN monto ELSE 0 END
-          ), 0) AS ingresos_prob
+            CASE WHEN tipo = 'Ingreso' AND certeza = 'PROBABLE'   THEN monto    ELSE 0 END
+          ), 0) AS ingresos_prob_tx
 
         FROM transactions
         WHERE fecha >= $1::date
           AND fecha <= $2::date
       `, [inicio, fin]),
 
-      // Q2 — obligaciones pendientes (sin filtro certeza: spec dice "estado='pendiente'" punto)
+      // Q2 — proyecciones (Escenarios): ingresos probables del período.
+      // monto en proyecciones es positivo para ingresos.
+      // Solo tipo='Ingreso' AND escenario='PROBABLE' — nunca egresos probables.
+      pool.query(`
+        SELECT COALESCE(SUM(monto), 0) AS ingresos_prob_esc
+        FROM proyecciones
+        WHERE tipo      = 'Ingreso'
+          AND escenario = 'PROBABLE'
+          AND fecha >= $1::date
+          AND fecha <= $2::date
+      `, [inicio, fin]),
+
+      // Q3 — obligaciones pendientes
       pool.query(`
         SELECT COALESCE(SUM(monto), 0) AS obligaciones_totales
         FROM obligaciones
@@ -80,18 +104,15 @@ router.get("/summary", async (req, res) => {
     // Extraer como number (Postgres devuelve NUMERIC como string)
     const ingresosConfirmados = toNum(q1.rows[0].ingresos_conf);
     const egresosConfirmados  = toNum(q1.rows[0].egresos_conf);
-    const ingresosProbables   = toNum(q1.rows[0].ingresos_prob);
-    const obligacionesTotales = toNum(q2.rows[0].obligaciones_totales);
+    const ingresosProbTx      = toNum(q1.rows[0].ingresos_prob_tx);
+    const ingresosProbEsc     = toNum(q2.rows[0].ingresos_prob_esc);
+    // Total probable = movimientos probables + escenarios probables
+    const ingresosProbables   = ingresosProbTx + ingresosProbEsc;
+    const obligacionesTotales = toNum(q3.rows[0].obligaciones_totales);
 
-    // Fórmulas exactas según spec (NO modificar)
-    // Test manual rápido (valores del ejemplo en spec):
-    //   ingresosConfirmados=2.82M, egresosConfirmados=1.32M, obligacionesTotales=7.30M, ingresosProbables=5.00M
-    //   liquidezActual           = 2.82 − 1.32           =  1.50M  ✓
-    //   liquidezConObligaciones  = 1.50 − 7.30           = −5.80M  ✓  (obligaciones SIEMPRE restan)
-    //   liquidezProbable         = 1.50 + 5.00 − 7.30   = −0.80M  ✓
+    // Derivados
     const liquidezActual          = ingresosConfirmados - egresosConfirmados;
     const liquidezConObligaciones = ingresosConfirmados - egresosConfirmados - obligacionesTotales;
-    const liquidezProbable        = ingresosConfirmados - egresosConfirmados + ingresosProbables - obligacionesTotales;
 
     res.json({
       periodo: { inicio, fin, label: "Mes actual" },
@@ -101,7 +122,6 @@ router.get("/summary", async (req, res) => {
       obligacionesTotales,
       liquidezActual,
       liquidezConObligaciones,
-      liquidezProbable,
     });
   } catch (err) {
     console.error("[GET /dashboard/summary]", err.message);
