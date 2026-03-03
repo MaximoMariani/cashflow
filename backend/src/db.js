@@ -14,7 +14,6 @@ async function initDB() {
         nombre VARCHAR(100) NOT NULL UNIQUE,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS transactions (
         id SERIAL PRIMARY KEY,
         fecha DATE NOT NULL,
@@ -25,7 +24,6 @@ async function initDB() {
         cuenta VARCHAR(100) NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS proyecciones (
         id SERIAL PRIMARY KEY,
         fecha DATE NOT NULL,
@@ -37,7 +35,6 @@ async function initDB() {
         notas TEXT DEFAULT '',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS dashboard_config (
         id INTEGER PRIMARY KEY DEFAULT 1,
         proveedores NUMERIC(15,2) DEFAULT 0,
@@ -48,21 +45,18 @@ async function initDB() {
         saldo_respaldo NUMERIC(15,2) DEFAULT 0,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS dinero_estimado (
         id SERIAL PRIMARY KEY,
         concepto VARCHAR(255),
         monto NUMERIC(15,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS fondos_inversion (
         id SERIAL PRIMARY KEY,
         nombre VARCHAR(255),
         monto NUMERIC(15,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-
       CREATE TABLE IF NOT EXISTS obligaciones (
         id SERIAL PRIMARY KEY,
         fecha_vencimiento DATE NOT NULL,
@@ -78,11 +72,27 @@ async function initDB() {
       );
     `);
 
+    // Migración idempotente: agrega columna escenario si no existe
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'proyecciones' AND column_name = 'escenario'
+        ) THEN
+          ALTER TABLE proyecciones
+            ADD COLUMN escenario VARCHAR(10) NOT NULL DEFAULT 'PROBABLE';
+          ALTER TABLE proyecciones
+            ADD CONSTRAINT proyecciones_escenario_check
+            CHECK (escenario IN ('CONFIRMADO','PROBABLE'));
+        END IF;
+      END$$;
+    `);
+
     const { rowCount } = await client.query("SELECT 1 FROM cuentas LIMIT 1");
     if (rowCount === 0) {
       await client.query(`INSERT INTO cuentas (nombre) VALUES ('MercadoPago Manuel') ON CONFLICT DO NOTHING`);
     }
-
     await client.query(`INSERT INTO dashboard_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
 
     const { rowCount: txCount } = await client.query("SELECT 1 FROM transactions LIMIT 1");

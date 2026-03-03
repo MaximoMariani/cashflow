@@ -4,6 +4,24 @@ import { CATEGORIAS, fmt, fmtFull, iStyle, lStyle } from "../lib/utils.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// Parsea fecha de forma segura independientemente del formato que devuelva Postgres
+// (DATE como "2026-03-10", TIMESTAMPTZ como "2026-03-10T00:00:00.000Z", etc.)
+const parseDate = (val) => {
+  if (!val) return null;
+  // Tomar solo los primeros 10 chars si es timestamp completo, para evitar
+  // problemas de timezone al concatenar "T00:00:00"
+  const iso = typeof val === "string" ? val.slice(0, 10) : null;
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const d = new Date(iso + "T00:00:00");
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const formatDateSafe = (val) => {
+  const d = parseDate(val);
+  if (!d) return "—";
+  return d.toLocaleDateString("es-AR");
+};
+
 const blankForm = (cuentas) => ({
   fecha_vencimiento: today(),
   concepto: "",
@@ -121,10 +139,10 @@ function PagarModal({ oblig, onConfirm, onClose }) {
 
 // ── Fila de obligación ────────────────────────────────────────────────────────
 function ObligRow({ o, onPagar, onEdit, onDelete }) {
-  const venc = new Date(o.fecha_vencimiento + "T00:00:00");
-  const diffDays = Math.ceil((venc - new Date()) / (1000 * 60 * 60 * 24));
-  const isVencida = o.estado === "PENDIENTE" && diffDays < 0;
-  const isProxima = o.estado === "PENDIENTE" && diffDays >= 0 && diffDays <= 7;
+  const venc = parseDate(o.fecha_vencimiento);
+  const diffDays = venc ? Math.ceil((venc - new Date()) / (1000 * 60 * 60 * 24)) : null;
+  const isVencida = o.estado === "PENDIENTE" && diffDays !== null && diffDays < 0;
+  const isProxima = o.estado === "PENDIENTE" && diffDays !== null && diffDays >= 0 && diffDays <= 7;
 
   const estadoBadge = o.estado === "PAGADA"
     ? { bg: "rgba(74,222,128,0.12)", color: "#4ade80", border: "rgba(74,222,128,0.3)", label: "Pagada" }
@@ -139,15 +157,15 @@ function ObligRow({ o, onPagar, onEdit, onDelete }) {
   return (
     <tr style={{ borderBottom: "1px solid #1a2236", background: rowBg }}>
       <td style={{ padding: "12px 16px", fontSize: 12, color: isVencida ? "#f87171" : "#94a3b8", fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap" }}>
-        {venc.toLocaleDateString("es-AR")}
+        {formatDateSafe(o.fecha_vencimiento)}
         {o.estado === "PENDIENTE" && (
           <div style={{ fontSize: 10, color: isVencida ? "#f87171" : isProxima ? "#facc15" : "#475569", marginTop: 2 }}>
-            {isVencida ? `hace ${Math.abs(diffDays)}d` : diffDays === 0 ? "hoy" : `en ${diffDays}d`}
+            {diffDays !== null ? (isVencida ? `hace ${Math.abs(diffDays)}d` : diffDays === 0 ? "hoy" : `en ${diffDays}d`) : ""}
           </div>
         )}
         {o.estado === "PAGADA" && o.fecha_pago && (
           <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
-            pagado {new Date(o.fecha_pago + "T00:00:00").toLocaleDateString("es-AR")}
+            pagado {formatDateSafe(o.fecha_pago)}
           </div>
         )}
       </td>

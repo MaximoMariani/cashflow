@@ -2,17 +2,33 @@ import { useState, useMemo } from "react";
 import { Card, PageHeader, PrimaryBtn, Badge, Modal } from "../components/UI.jsx";
 import { CATEGORIAS, fmt, fmtFull, iStyle, lStyle } from "../lib/utils.js";
 
+// Badges visuales para escenario
+const ESC_STYLES = {
+  CONFIRMADO: { bg: "rgba(99,102,241,0.12)", color: "#818cf8", border: "rgba(99,102,241,0.3)", label: "Confirmado" },
+  PROBABLE:   { bg: "rgba(250,204,21,0.10)", color: "#facc15", border: "rgba(250,204,21,0.25)", label: "Probable"   },
+};
+
+function EscenarioBadge({ escenario }) {
+  const s = ESC_STYLES[escenario] || ESC_STYLES.PROBABLE;
+  return (
+    <span style={{ padding: "3px 9px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+      {s.label}
+    </span>
+  );
+}
+
 const blank = (cuentas) => ({
   fecha: new Date().toISOString().slice(0, 10),
-  concepto: "", tipo: "Ingreso",
+  concepto: "", tipo: "Ingreso", escenario: "PROBABLE",
   categoria: CATEGORIAS[0], monto: "",
   cuenta: cuentas[0]?.nombre || "", notas: ""
 });
 
-// ── Modal para crear/editar proyección ───────────────────────────────────────
+// ── Modal crear/editar ────────────────────────────────────────────────────────
 function ProjModal({ proj, cuentas, onSave, onClose }) {
   const [form, setForm] = useState(proj
-    ? { ...proj, monto: Math.abs(parseFloat(proj.monto)).toString() }
+    ? { ...proj, monto: Math.abs(parseFloat(proj.monto)).toString(), escenario: proj.escenario || "PROBABLE" }
     : blank(cuentas)
   );
   const [saving, setSaving] = useState(false);
@@ -33,10 +49,12 @@ function ProjModal({ proj, cuentas, onSave, onClose }) {
   };
 
   return (
-    <Modal title={proj ? "Editar Proyección" : "Nueva Proyección"} onClose={onClose}>
+    <Modal title={proj ? "Editar Escenario" : "Nuevo Escenario"} onClose={onClose}>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Fecha estimada</label><input type="date" value={form.fecha} onChange={set("fecha")} style={iStyle}/></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Concepto</label><input type="text" value={form.concepto} onChange={set("concepto")} placeholder="Ej: Cobro cliente, Pago proveedor..." style={iStyle}/></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Monto ($)</label><input type="number" value={form.monto} onChange={set("monto")} placeholder="0" style={iStyle}/></div>
+
+      {/* Tipo: Ingreso / Egreso */}
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Tipo</label>
         <div style={{ display: "flex", gap: 8 }}>
@@ -50,22 +68,46 @@ function ProjModal({ proj, cuentas, onSave, onClose }) {
           ))}
         </div>
       </div>
+
+      {/* Escenario: PROBABLE / CONFIRMADO */}
+      <div style={{ marginBottom: 16 }}>
+        <label style={lStyle}>Escenario</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[
+            { val: "PROBABLE",   label: "Probable",   activeColor: "#facc15", activeBg: "rgba(250,204,21,0.12)", activeBorder: "rgba(250,204,21,0.35)" },
+            { val: "CONFIRMADO", label: "Confirmado", activeColor: "#818cf8", activeBg: "rgba(99,102,241,0.12)",  activeBorder: "rgba(99,102,241,0.35)" },
+          ].map(({ val, label, activeColor, activeBg, activeBorder }) => (
+            <button key={val} onClick={() => setForm(p => ({ ...p, escenario: val }))} style={{
+              flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600, border: "1px solid",
+              background: form.escenario === val ? activeBg : "transparent",
+              borderColor: form.escenario === val ? activeBorder : "#1e293b",
+              color: form.escenario === val ? activeColor : "#64748b",
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: "#475569", marginTop: 6, lineHeight: 1.4 }}>
+          {form.escenario === "CONFIRMADO"
+            ? "Impacta en el saldo futuro confirmado (deudas o cobros seguros)."
+            : "Solo impacta en el escenario probable (puede o no ocurrir)."}
+        </div>
+      </div>
+
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Categoría</label><select value={form.categoria} onChange={set("categoria")} style={iStyle}>{CATEGORIAS.map(c => <option key={c}>{c}</option>)}</select></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Cuenta (opcional)</label><select value={form.cuenta} onChange={set("cuenta")} style={iStyle}><option value="">Sin especificar</option>{cuentas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}</select></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Notas (opcional)</label><input type="text" value={form.notas} onChange={set("notas")} placeholder="Cualquier detalle adicional..." style={iStyle}/></div>
       {err && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(248,113,113,0.1)", borderRadius: 6 }}>{err}</div>}
       <PrimaryBtn onClick={handleSave} style={{ width: "100%", padding: "12px", fontSize: 14, opacity: saving ? 0.6 : 1 }}>
-        {saving ? "Guardando..." : proj ? "Guardar Cambios" : "Agregar Proyección"}
+        {saving ? "Guardando..." : proj ? "Guardar Cambios" : "Agregar Escenario"}
       </PrimaryBtn>
     </Modal>
   );
 }
 
-// ── Modal para confirmar y pasar a movimiento real ───────────────────────────
+// ── Modal confirmar → movimiento real ────────────────────────────────────────
 function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
   const montoOriginal = Math.abs(parseFloat(proj.monto));
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().slice(0, 10), // fecha real de hoy por defecto
+    fecha: new Date().toISOString().slice(0, 10),
     concepto: proj.concepto,
     tipo: proj.tipo,
     categoria: proj.categoria,
@@ -84,9 +126,7 @@ function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
     if (!form.fecha || !form.concepto || !form.monto) { setErr("Completá todos los campos"); return; }
     setSaving(true); setErr("");
     try {
-      const monto = form.tipo === "Egreso"
-        ? -Math.abs(parseFloat(form.monto))
-        : Math.abs(parseFloat(form.monto));
+      const monto = form.tipo === "Egreso" ? -Math.abs(parseFloat(form.monto)) : Math.abs(parseFloat(form.monto));
       await onConfirm({ ...form, monto });
       onClose();
     } catch (e) { setErr(e.message); }
@@ -95,18 +135,15 @@ function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
 
   return (
     <Modal title="Confirmar movimiento real" onClose={onClose} width={460}>
-      {/* Aviso explicativo */}
       <div style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 8, padding: "12px 16px", marginBottom: 20 }}>
         <div style={{ fontSize: 12, color: "#4ade80", fontWeight: 600, marginBottom: 4 }}>¿El movimiento ya ocurrió?</div>
         <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-          Ajustá el monto si hubo variación y confirmá. Se agregará a Movimientos reales y se eliminará de Proyecciones.
+          Ajustá el monto si hubo variación y confirmá. Se agregará a Movimientos reales y se eliminará de Escenarios.
         </div>
       </div>
-
-      {/* Monto original vs actual */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
         <div style={{ flex: 1, background: "#111827", borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Monto proyectado</div>
+          <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Monto estimado</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#64748b", fontFamily: "'DM Mono',monospace" }}>{fmt(proj.monto)}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", color: "#334155", fontSize: 18 }}>→</div>
@@ -117,13 +154,12 @@ function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
           </div>
           {hasDiff && (
             <div style={{ fontSize: 11, color: diff > 0 ? "#4ade80" : "#f87171", marginTop: 4 }}>
-              {diff > 0 ? "+" : ""}{fmt(form.tipo === "Egreso" ? -diff : diff)} vs proyectado
+              {diff > 0 ? "+" : ""}{fmt(form.tipo === "Egreso" ? -diff : diff)} vs estimado
             </div>
           )}
         </div>
       </div>
-
-      <div style={{ marginBottom: 16 }}><label style={lStyle}>Fecha real del movimiento</label><input type="date" value={form.fecha} onChange={set("fecha")} style={iStyle}/></div>
+      <div style={{ marginBottom: 16 }}><label style={lStyle}>Fecha real</label><input type="date" value={form.fecha} onChange={set("fecha")} style={iStyle}/></div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Concepto</label><input type="text" value={form.concepto} onChange={set("concepto")} style={iStyle}/></div>
       <div style={{ marginBottom: 16 }}>
         <label style={lStyle}>Monto real ($)</label>
@@ -134,9 +170,7 @@ function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
       </div>
       <div style={{ marginBottom: 16 }}><label style={lStyle}>Categoría</label><select value={form.categoria} onChange={set("categoria")} style={iStyle}>{CATEGORIAS.map(c => <option key={c}>{c}</option>)}</select></div>
       <div style={{ marginBottom: 20 }}><label style={lStyle}>Cuenta</label><select value={form.cuenta} onChange={set("cuenta")} style={iStyle}><option value="">Sin especificar</option>{cuentas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}</select></div>
-
       {err && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "rgba(248,113,113,0.1)", borderRadius: 6 }}>{err}</div>}
-
       <div style={{ display: "flex", gap: 10 }}>
         <button onClick={onClose} style={{ flex: 1, background: "#111827", border: "1px solid #1e293b", color: "#94a3b8", padding: "11px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Cancelar</button>
         <button onClick={handleConfirm} disabled={saving} style={{ flex: 2, background: "rgba(74,222,128,0.15)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", padding: "11px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, opacity: saving ? 0.6 : 1 }}>
@@ -147,7 +181,7 @@ function ConfirmarModal({ proj, cuentas, onConfirm, onClose }) {
   );
 }
 
-// ── Modal eliminar proyección ─────────────────────────────────────────────────
+// ── Modal eliminar ────────────────────────────────────────────────────────────
 function DeleteProjModal({ proj, onConfirm, onClose }) {
   const [loading, setLoading] = useState(false);
   const handle = async () => {
@@ -155,7 +189,7 @@ function DeleteProjModal({ proj, onConfirm, onClose }) {
     try { await onConfirm(); onClose(); } catch { setLoading(false); }
   };
   return (
-    <Modal title="¿Eliminar proyección?" onClose={onClose} width={380} danger>
+    <Modal title="¿Eliminar escenario?" onClose={onClose} width={380} danger>
       <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>Esta acción no se puede deshacer.</p>
       <div style={{ background: "#111827", borderRadius: 8, padding: "14px 16px", marginBottom: 24 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 4 }}>{proj.concepto}</div>
@@ -175,57 +209,86 @@ function DeleteProjModal({ proj, onConfirm, onClose }) {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-export default function ProyeccionesPage({ data }) {
+export default function EscenariosPage({ data }) {
   const { proyecciones, transactions, cuentas, addTransaction, addProyeccion, updateProyeccion, deleteProyeccion } = data;
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [filterEsc, setFilterEsc] = useState("Todos");
   const [filterTipo, setFilterTipo] = useState("Todos");
-  const [justConfirmed, setJustConfirmed] = useState(null); // id para animación feedback
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const saldoActual = useMemo(() => transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
-  const saldoProyectado = saldoActual + proyecciones.reduce((a, p) => a + parseFloat(p.monto), 0);
-  const totalProyIng = proyecciones.filter(p => parseFloat(p.monto) > 0).reduce((a, p) => a + parseFloat(p.monto), 0);
-  const totalProyEgr = proyecciones.filter(p => parseFloat(p.monto) < 0).reduce((a, p) => a + Math.abs(parseFloat(p.monto)), 0);
+  // ── Cálculos de escenarios ──────────────────────────────────────────────────
+  const saldoActual = useMemo(() =>
+    transactions.reduce((a, t) => a + parseFloat(t.monto), 0), [transactions]);
+
+  const futuras = useMemo(() =>
+    proyecciones.filter(p => p.fecha?.slice(0, 10) >= today), [proyecciones, today]);
+
+  // Saldo futuro CONFIRMADO = saldo actual + futuros confirmados
+  const saldoConfirmado = useMemo(() => {
+    const sumConf = futuras
+      .filter(p => p.escenario === "CONFIRMADO")
+      .reduce((a, p) => a + parseFloat(p.monto), 0);
+    return saldoActual + sumConf;
+  }, [saldoActual, futuras]);
+
+  // Saldo futuro PROBABLE = saldo confirmado + futuros probables
+  const saldoProbable = useMemo(() => {
+    const sumProb = futuras
+      .filter(p => p.escenario === "PROBABLE")
+      .reduce((a, p) => a + parseFloat(p.monto), 0);
+    return saldoConfirmado + sumProb;
+  }, [saldoConfirmado, futuras]);
+
+  const diferencia = saldoProbable - saldoConfirmado;
+
+  const totalIng = proyecciones.filter(p => parseFloat(p.monto) > 0).reduce((a, p) => a + parseFloat(p.monto), 0);
+  const totalEgr = proyecciones.filter(p => parseFloat(p.monto) < 0).reduce((a, p) => a + Math.abs(parseFloat(p.monto)), 0);
 
   const filtered = useMemo(() =>
     proyecciones
+      .filter(p => filterEsc === "Todos" || p.escenario === filterEsc)
       .filter(p => filterTipo === "Todos" || p.tipo === filterTipo)
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha)),
-    [proyecciones, filterTipo]
+    [proyecciones, filterEsc, filterTipo]
   );
 
   const proximos7 = proyecciones.filter(p => {
     const diff = (new Date(p.fecha) - new Date()) / (1000 * 60 * 60 * 24);
-    return diff >= -1 && diff <= 7; // incluye hoy y vencidos recientes
+    return diff >= -1 && diff <= 7;
   });
 
-  // Confirmar: crea movimiento real + elimina proyección
   const handleConfirmar = async (proj, txData) => {
     await addTransaction(txData);
     await deleteProyeccion(proj.id);
-    setJustConfirmed(proj.id);
-    setTimeout(() => setJustConfirmed(null), 2000);
   };
 
   const fBtn = (val, active, fn) => (
-    <button onClick={fn} style={{ padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 500, background: active ? "#1e293b" : "transparent", border: active ? "1px solid #334155" : "1px solid #1a2236", color: active ? "#f8fafc" : "#64748b", transition: "all 0.12s" }}>{val}</button>
+    <button onClick={fn} style={{ padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 500,
+      background: active ? "#1e293b" : "transparent",
+      border: active ? "1px solid #334155" : "1px solid #1a2236",
+      color: active ? "#f8fafc" : "#64748b", transition: "all 0.12s" }}>{val}</button>
   );
 
   return (
     <div>
-      <PageHeader pre="Futuro" title="Proyecciones" action={<PrimaryBtn onClick={() => setShowAdd(true)}>+ Nueva Proyección</PrimaryBtn>} />
+      <PageHeader pre="Futuro" title="Escenarios" action={<PrimaryBtn onClick={() => setShowAdd(true)}>+ Nuevo Escenario</PrimaryBtn>} />
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 16 }}>
+      {/* KPIs de escenarios — la parte central del feature */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 16 }}>
         {[
-          { label: "Saldo Actual", value: fmt(saldoActual), color: saldoActual >= 0 ? "#4ade80" : "#f87171", sub: "Hoy" },
-          { label: "Saldo Proyectado", value: fmt(saldoProyectado), color: saldoProyectado >= 0 ? "#4ade80" : "#f87171", sub: "Con todos los futuros" },
-          { label: "Ingresos Futuros", value: fmt(totalProyIng), color: "#4ade80", sub: `${proyecciones.filter(p => parseFloat(p.monto) > 0).length} proyectados` },
-          { label: "Egresos Futuros", value: fmt(totalProyEgr), color: "#f87171", sub: `${proyecciones.filter(p => parseFloat(p.monto) < 0).length} proyectados` },
+          { label: "Saldo Actual",           value: fmt(saldoActual),    color: saldoActual >= 0    ? "#4ade80" : "#f87171", sub: "Hoy" },
+          { label: "Futuro Confirmado",       value: fmt(saldoConfirmado),color: saldoConfirmado >= 0 ? "#818cf8" : "#f87171", sub: "Solo movimientos seguros" },
+          { label: "Futuro c/ Probables",     value: fmt(saldoProbable),  color: saldoProbable >= 0  ? "#4ade80" : "#f87171", sub: "Confirmado + probable" },
+          {
+            label: "Diferencia",
+            value: (diferencia >= 0 ? "+" : "") + fmt(diferencia),
+            color: diferencia >= 0 ? "#4ade80" : "#f87171",
+            sub: "Probable vs Confirmado"
+          },
         ].map((k, i) => (
           <Card key={i}>
             <div style={{ fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{k.label}</div>
@@ -233,6 +296,28 @@ export default function ProyeccionesPage({ data }) {
             <div style={{ fontSize: 11, color: "#334155" }}>{k.sub}</div>
           </Card>
         ))}
+      </div>
+
+      {/* Panel explicativo de escenarios */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+        <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 10, padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, color: "#818cf8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>◆ Confirmado</div>
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+            Cobros asegurados y obligaciones contraídas. Impactan directamente en el saldo futuro real.
+          </div>
+          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: "#818cf8", fontFamily: "'DM Mono',monospace" }}>
+            {proyecciones.filter(p => p.escenario === "CONFIRMADO").length} movimientos
+          </div>
+        </div>
+        <div style={{ background: "rgba(250,204,21,0.06)", border: "1px solid rgba(250,204,21,0.2)", borderRadius: 10, padding: "14px 18px" }}>
+          <div style={{ fontSize: 11, color: "#facc15", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>◇ Probable</div>
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+            Ingresos o egresos que pueden ocurrir. Sirven para simular riesgo y planificar escenarios alternativos.
+          </div>
+          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: "#facc15", fontFamily: "'DM Mono',monospace" }}>
+            {proyecciones.filter(p => !p.escenario || p.escenario === "PROBABLE").length} movimientos
+          </div>
+        </div>
       </div>
 
       {/* Alerta próximos 7 días */}
@@ -243,16 +328,17 @@ export default function ProyeccionesPage({ data }) {
           </div>
           {proximos7.map(p => (
             <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(250,204,21,0.08)" }}>
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12, color: "#e2e8f0", fontWeight: 500 }}>{p.concepto}</span>
-                <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>{p.fecha?.slice(0, 10)}</span>
-                {p.fecha?.slice(0, 10) <= today && <span style={{ marginLeft: 8, fontSize: 10, background: "rgba(248,113,113,0.15)", color: "#f87171", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>HOY / VENCIDO</span>}
+                <span style={{ fontSize: 11, color: "#64748b" }}>{p.fecha?.slice(0, 10)}</span>
+                <EscenarioBadge escenario={p.escenario || "PROBABLE"} />
+                {p.fecha?.slice(0, 10) <= today && <span style={{ fontSize: 10, background: "rgba(248,113,113,0.15)", color: "#f87171", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>HOY / VENCIDO</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: parseFloat(p.monto) > 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono',monospace" }}>
                   {parseFloat(p.monto) > 0 ? "+" : ""}{fmt(p.monto)}
                 </span>
-                <button onClick={() => setConfirming(p)} style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, whiteSpace: "nowrap" }}>
+                <button onClick={() => setConfirming(p)} style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.3)", color: "#4ade80", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6 }}>
                   ✓ Confirmar
                 </button>
               </div>
@@ -265,22 +351,28 @@ export default function ProyeccionesPage({ data }) {
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 12, color: "#475569", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-            Todos los movimientos proyectados
+            {filtered.length} de {proyecciones.length} movimientos
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {["Todos", "CONFIRMADO", "PROBABLE"].map(f => fBtn(
+              f === "CONFIRMADO" ? "Confirmados" : f === "PROBABLE" ? "Probables" : "Todos",
+              filterEsc === f,
+              () => setFilterEsc(f)
+            ))}
+            <div style={{ width: 1, background: "#1e293b", margin: "0 4px" }} />
             {["Todos", "Ingreso", "Egreso"].map(f => fBtn(f, filterTipo === f, () => setFilterTipo(f)))}
           </div>
         </div>
 
         {filtered.length === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#334155", fontSize: 13 }}>
-            No hay proyecciones. Agregá ingresos o egresos futuros para proyectar tu cashflow.
+            No hay escenarios con este filtro.
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #1a2236" }}>
-                {["Fecha", "Concepto", "Categoría", "Tipo", "Monto", "Notas", "Acciones"].map(h => (
+                {["Fecha", "Concepto", "Escenario", "Tipo", "Monto", "Notas", "Acciones"].map(h => (
                   <th key={h} style={{ padding: "11px 14px", textAlign: h === "Monto" ? "right" : "left", fontSize: 10, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500 }}>{h}</th>
                 ))}
               </tr>
@@ -300,9 +392,7 @@ export default function ProyeccionesPage({ data }) {
                       {isPast && !isToday && <span style={{ marginLeft: 6, fontSize: 10, color: "#475569" }}>vencido</span>}
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 13, color: "#e2e8f0", fontWeight: 500 }}>{p.concepto}</td>
-                    <td style={{ padding: "11px 14px" }}>
-                      <span style={{ padding: "3px 8px", borderRadius: 4, background: "#111827", fontSize: 11, color: "#94a3b8", border: "1px solid #1e293b" }}>{p.categoria}</span>
-                    </td>
+                    <td style={{ padding: "11px 14px" }}><EscenarioBadge escenario={p.escenario || "PROBABLE"} /></td>
                     <td style={{ padding: "11px 14px" }}><Badge type={p.tipo}>{p.tipo}</Badge></td>
                     <td style={{ padding: "11px 14px", textAlign: "right", fontSize: 13, fontWeight: 600, fontFamily: "'DM Mono',monospace", color: parseFloat(p.monto) > 0 ? "#4ade80" : "#f87171", whiteSpace: "nowrap" }}>
                       {parseFloat(p.monto) > 0 ? "+" : ""}{fmtFull(p.monto)}
@@ -310,15 +400,14 @@ export default function ProyeccionesPage({ data }) {
                     <td style={{ padding: "11px 14px", fontSize: 11, color: "#475569", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.notas || "—"}</td>
                     <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 5 }}>
-                        {/* Confirmar — destacado si es hoy o pasado */}
                         <button onClick={() => setConfirming(p)} style={{
                           background: (isPast || isToday) ? "rgba(74,222,128,0.12)" : "#111827",
                           border: `1px solid ${(isPast || isToday) ? "rgba(74,222,128,0.35)" : "#1e293b"}`,
                           color: (isPast || isToday) ? "#4ade80" : "#475569",
-                          cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, transition: "all 0.15s"
+                          cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6
                         }}
-                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(74,222,128,0.2)"; e.currentTarget.style.color = "#4ade80"; e.currentTarget.style.borderColor = "rgba(74,222,128,0.4)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = (isPast || isToday) ? "rgba(74,222,128,0.12)" : "#111827"; e.currentTarget.style.color = (isPast || isToday) ? "#4ade80" : "#475569"; e.currentTarget.style.borderColor = (isPast || isToday) ? "rgba(74,222,128,0.35)" : "#1e293b"; }}>
+                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(74,222,128,0.2)"; e.currentTarget.style.color = "#4ade80"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = (isPast || isToday) ? "rgba(74,222,128,0.12)" : "#111827"; e.currentTarget.style.color = (isPast || isToday) ? "#4ade80" : "#475569"; }}>
                           ✓ Confirmar
                         </button>
                         <button onClick={() => setEditing(p)} style={{ background: "#1e293b", border: "1px solid #334155", color: "#94a3b8", cursor: "pointer", fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 6 }}

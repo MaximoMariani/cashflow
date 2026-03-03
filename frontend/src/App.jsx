@@ -5,18 +5,18 @@ import { fmt, getSemaforo, SEMAFORO_COLORS } from "./lib/utils.js";
 import TxModal from "./components/TxModal.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 
-import DashboardPage from "./pages/DashboardPage.jsx";
-import MovimientosPage from "./pages/MovimientosPage.jsx";
+import DashboardPage    from "./pages/DashboardPage.jsx";
+import MovimientosPage  from "./pages/MovimientosPage.jsx";
+import EscenariosPage   from "./pages/ProyeccionesPage.jsx";
 import ObligacionesPage from "./pages/ObligacionesPage.jsx";
-import FondosPage from "./pages/FondosPage.jsx";
-import AnalisisPage from "./pages/AnalisisPage.jsx";
-import CuentasPage from "./pages/CuentasPage.jsx";
-import ProyeccionesPage from "./pages/ProyeccionesPage.jsx";
+import FondosPage       from "./pages/FondosPage.jsx";
+import AnalisisPage     from "./pages/AnalisisPage.jsx";
+import CuentasPage      from "./pages/CuentasPage.jsx";
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",      icon: "⬡" },
   { id: "movimientos",  label: "Movimientos",     icon: "≡" },
-  { id: "proyecciones", label: "Proyecciones",    icon: "◌" },
+  { id: "escenarios",   label: "Escenarios",      icon: "◌" },
   { id: "obligaciones", label: "Obligaciones",    icon: "◈" },
   { id: "fondos",       label: "Fondos & Cobros", icon: "◉" },
   { id: "analisis",     label: "Análisis",        icon: "◫" },
@@ -24,7 +24,6 @@ const NAV = [
 ];
 
 export default function App() {
-  // Auth — persiste en sessionStorage (se cierra al cerrar el tab)
   const savedUser = sessionStorage.getItem("cf_user");
   const [user, setUser] = useState(savedUser || null);
 
@@ -81,8 +80,6 @@ export default function App() {
           <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", fontFamily: "'DM Mono',monospace", marginBottom: 16 }}>
             {loading ? "—" : fmt(saldo)}
           </div>
-
-          {/* User + logout */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid #111827" }}>
             <div>
               <div style={{ fontSize: 11, color: "#334155", marginBottom: 2 }}>Usuario</div>
@@ -97,14 +94,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN */}
       <div style={{ flex: 1, padding: "36px 40px", overflowY: "auto", minHeight: "100vh" }}>
         {error && <ErrorBanner message={error} onRetry={reload} />}
         {loading ? <Spinner /> : (
           <>
-            {view === "dashboard"    && <DashboardPage    data={data} onAdd={() => setShowGlobalAdd(true)} onGoProyecciones={() => setView("proyecciones")} />}
+            {view === "dashboard"    && <DashboardPage    data={data} onAdd={() => setShowGlobalAdd(true)} onGoEscenarios={() => setView("escenarios")} />}
             {view === "movimientos"  && <MovimientosPage  data={data} />}
-            {view === "proyecciones" && <ProyeccionesPage data={data} />}
+            {view === "escenarios"   && <EscenariosPage   data={data} />}
             {view === "obligaciones" && <ObligacionesPage data={data} />}
             {view === "fondos"       && <FondosPage       data={data} />}
             {view === "analisis"     && <AnalisisPage     data={data} />}
@@ -114,12 +111,7 @@ export default function App() {
       </div>
 
       {showGlobalAdd && (
-        <TxModal
-          tx={null}
-          cuentas={cuentas}
-          onSave={addTransaction}
-          onClose={() => setShowGlobalAdd(false)}
-        />
+        <TxModal tx={null} cuentas={cuentas} onSave={addTransaction} onClose={() => setShowGlobalAdd(false)} />
       )}
     </div>
   );
