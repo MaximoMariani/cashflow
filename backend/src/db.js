@@ -8,25 +8,30 @@ const pool = new Pool({
 async function initDB() {
   const client = await pool.connect();
   try {
-    // ── Tablas base ──────────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS cuentas (
         id SERIAL PRIMARY KEY,
-        nombre VARCHAR(100) NOT NULL UNIQUE,
-        created_at TIMESTAMPTZ DEFAULT NOW()
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
+        nombre VARCHAR(100) NOT NULL,
+        balance_actual NUMERIC(15,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, nombre)
       );
       CREATE TABLE IF NOT EXISTS transactions (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         fecha DATE NOT NULL,
         concepto VARCHAR(255) NOT NULL,
         tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('Ingreso','Egreso')),
         categoria VARCHAR(100) NOT NULL,
         monto NUMERIC(15,2) NOT NULL,
         cuenta VARCHAR(100) NOT NULL,
+        certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADO',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS proyecciones (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         fecha DATE NOT NULL,
         concepto VARCHAR(255) NOT NULL,
         tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('Ingreso','Egreso')),
@@ -34,10 +39,12 @@ async function initDB() {
         monto NUMERIC(15,2) NOT NULL,
         cuenta VARCHAR(100) DEFAULT '',
         notas TEXT DEFAULT '',
+        escenario VARCHAR(10) NOT NULL DEFAULT 'PROBABLE',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS dashboard_config (
-        id INTEGER PRIMARY KEY DEFAULT 1,
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         proveedores NUMERIC(15,2) DEFAULT 0,
         talleres NUMERIC(15,2) DEFAULT 0,
         sueldos_pendientes NUMERIC(15,2) DEFAULT 0,
@@ -48,18 +55,21 @@ async function initDB() {
       );
       CREATE TABLE IF NOT EXISTS dinero_estimado (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         concepto VARCHAR(255),
         monto NUMERIC(15,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS fondos_inversion (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         nombre VARCHAR(255),
         monto NUMERIC(15,2) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS obligaciones (
         id SERIAL PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         fecha_vencimiento DATE NOT NULL,
         concepto VARCHAR(255) NOT NULL,
         categoria VARCHAR(100) NOT NULL DEFAULT 'Otros',
@@ -68,33 +78,13 @@ async function initDB() {
         notas TEXT DEFAULT '',
         estado VARCHAR(10) NOT NULL DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE','PAGADA')),
         fecha_pago DATE,
+        certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADA',
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
-    `);
-
-    // ── Migración: columna escenario en proyecciones ──────────────────────
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'proyecciones' AND column_name = 'escenario'
-        ) THEN
-          ALTER TABLE proyecciones
-            ADD COLUMN escenario VARCHAR(10) NOT NULL DEFAULT 'PROBABLE';
-          ALTER TABLE proyecciones
-            ADD CONSTRAINT proyecciones_escenario_check
-            CHECK (escenario IN ('CONFIRMADO','PROBABLE'));
-        END IF;
-      END$$;
-    `);
-
-    // ── Migración: tabla financial_settings ───────────────────────────────
-    await client.query(`
       CREATE TABLE IF NOT EXISTS financial_settings (
-        id VARCHAR(50) PRIMARY KEY,
-        user_id VARCHAR(100) NOT NULL DEFAULT 'default',
+        id VARCHAR(255) PRIMARY KEY,
+        user_id VARCHAR(255) NOT NULL DEFAULT 'default',
         umbral_verde NUMERIC(15,2) NOT NULL DEFAULT 1000000,
         umbral_amarillo NUMERIC(15,2) NOT NULL DEFAULT 200000,
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -102,99 +92,54 @@ async function initDB() {
       );
     `);
 
-    // Inserta row por defecto si no existe
+    // Migraciones: agregar user_id a tablas existentes que no lo tienen
     await client.query(`
-      INSERT INTO financial_settings (id, user_id, umbral_verde, umbral_amarillo)
-      VALUES ('default', 'default', 1000000, 200000)
-      ON CONFLICT (id) DO NOTHING;
-    `);
-
-
-    // ── Migración: columna certeza en obligaciones ──────────────────────────
-    // Certeza ∈ {'CONFIRMADA','PROBABLE'} — requerida para breakdown del dashboard.
-    // Default CONFIRMADA: las obligaciones existentes se tratan como confirmadas (conservador).
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'obligaciones' AND column_name = 'certeza'
-        ) THEN
-          ALTER TABLE obligaciones
-            ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADA';
-          ALTER TABLE obligaciones
-            ADD CONSTRAINT obligaciones_certeza_check
-            CHECK (certeza IN ('CONFIRMADA','PROBABLE'));
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='user_id') THEN
+          ALTER TABLE transactions ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cuentas' AND column_name='user_id') THEN
+          ALTER TABLE cuentas ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proyecciones' AND column_name='user_id') THEN
+          ALTER TABLE proyecciones ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='obligaciones' AND column_name='user_id') THEN
+          ALTER TABLE obligaciones ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dinero_estimado' AND column_name='user_id') THEN
+          ALTER TABLE dinero_estimado ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fondos_inversion' AND column_name='user_id') THEN
+          ALTER TABLE fondos_inversion ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='certeza') THEN
+          ALTER TABLE transactions ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADO';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='obligaciones' AND column_name='certeza') THEN
+          ALTER TABLE obligaciones ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADA';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='proyecciones' AND column_name='escenario') THEN
+          ALTER TABLE proyecciones ADD COLUMN escenario VARCHAR(10) NOT NULL DEFAULT 'PROBABLE';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cuentas' AND column_name='balance_actual') THEN
+          ALTER TABLE cuentas ADD COLUMN balance_actual NUMERIC(15,2) NOT NULL DEFAULT 0;
         END IF;
       END$$;
     `);
 
-
-
-    // ── Migración: columna certeza en transactions ───────────────────────────
-    // Requerida por spec: liquidezActual = ingresosConf − egresosConf
-    // certeza ∈ {'CONFIRMADO','PROBABLE'} — default CONFIRMADO (conservador:
-    // todos los movimientos existentes son tratados como confirmados).
+    // dashboard_config: cambiar PK de INTEGER a VARCHAR para soportar user_id
+    // Si la tabla tiene id=1 (legacy), lo migramos a 'default'
     await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'transactions' AND column_name = 'certeza'
-        ) THEN
-          ALTER TABLE transactions
-            ADD COLUMN certeza VARCHAR(10) NOT NULL DEFAULT 'CONFIRMADO';
-          ALTER TABLE transactions
-            ADD CONSTRAINT transactions_certeza_check
-            CHECK (certeza IN ('CONFIRMADO','PROBABLE'));
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard_config' AND column_name='id' AND data_type='integer') THEN
+          ALTER TABLE dashboard_config ALTER COLUMN id TYPE VARCHAR(255) USING id::VARCHAR;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard_config' AND column_name='user_id') THEN
+          ALTER TABLE dashboard_config ADD COLUMN user_id VARCHAR(255) NOT NULL DEFAULT 'default';
         END IF;
       END$$;
     `);
-
-    // ── Migración: columna balance_actual en cuentas ────────────────────────
-    // Requerida por spec: liquidezActual = Σ cuentas.balance_actual (foto de hoy).
-    // Esta columna representa el saldo real de cada cuenta (actualizado manualmente
-    // o via integración bancaria). NO se sincroniza automáticamente con transactions;
-    // el usuario la mantiene desde el módulo de Cuentas.
-    // Default 0: cuentas existentes arrancan con balance_actual=0 hasta que el usuario
-    // lo actualice. Conservador: no inventar saldos.
-    await client.query(`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'cuentas' AND column_name = 'balance_actual'
-        ) THEN
-          ALTER TABLE cuentas
-            ADD COLUMN balance_actual NUMERIC(15,2) NOT NULL DEFAULT 0;
-        END IF;
-      END$$;
-    `);
-
-    // ── Seeds ─────────────────────────────────────────────────────────────
-    const { rowCount } = await client.query("SELECT 1 FROM cuentas LIMIT 1");
-    if (rowCount === 0) {
-      await client.query(`INSERT INTO cuentas (nombre) VALUES ('MercadoPago Manuel') ON CONFLICT DO NOTHING`);
-    }
-    await client.query(`INSERT INTO dashboard_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
-
-    const { rowCount: txCount } = await client.query("SELECT 1 FROM transactions LIMIT 1");
-    if (txCount === 0) {
-      await client.query(`
-        INSERT INTO transactions (fecha, concepto, tipo, categoria, monto, cuenta) VALUES
-        ('2026-02-27','Saldo Inicial','Ingreso','Regulación de caja',1300000,'MercadoPago Manuel'),
-        ('2026-02-27','Toma Dinero Plus','Ingreso','Préstamos',2817000,'MercadoPago Manuel'),
-        ('2026-02-27','Pago Carlos','Egreso','Tela',-2817000,'MercadoPago Manuel'),
-        ('2026-03-01','Liquidación sueldos','Egreso','Sueldos',-1300000,'MercadoPago Manuel'),
-        ('2026-03-05','Re-Stock','Ingreso','Restock / Drop',5500000,'MercadoPago Manuel'),
-        ('2026-03-05','Pago Carlos','Egreso','Tela',-2000000,'MercadoPago Manuel'),
-        ('2026-03-08','Ventas semanales','Ingreso','Ventas',2000000,'MercadoPago Manuel'),
-        ('2026-03-09','Baesics Fem','Egreso','Producciones',-1500000,'MercadoPago Manuel'),
-        ('2026-03-10','Alquiler','Egreso','Oblig. Oficina',-900000,'MercadoPago Manuel'),
-        ('2026-03-10','Expensas','Egreso','Oblig. Oficina',-45000,'MercadoPago Manuel'),
-        ('2026-03-15','Devolución Dinero Plus','Egreso','Préstamos',-2817000,'MercadoPago Manuel')
-      `);
-    }
 
     console.log("✅ Database initialized");
   } finally {

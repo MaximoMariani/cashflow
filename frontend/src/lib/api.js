@@ -1,14 +1,28 @@
+import { supabase } from "./supabaseClient.js";
+
 const BASE = "";
 
 async function req(method, path, body) {
+  // Obtener el UID del usuario logueado desde Supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  const userId = session?.user?.id;
+
   const url = `${BASE}/api${path}`;
+  const opts = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      // Mandamos el UID en cada request — el backend lo usa para filtrar datos
+      ...(userId ? { "x-user-id": userId } : {}),
+    },
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+
   let res;
   try {
-    const opts = { method, headers: { "Content-Type": "application/json" } };
-    if (body !== undefined) opts.body = JSON.stringify(body);
     res = await fetch(url, opts);
   } catch (networkErr) {
-    throw new Error(`No se puede conectar con el servidor. Verificá tu conexión.`);
+    throw new Error("No se puede conectar con el servidor. Verificá tu conexión.");
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -25,18 +39,18 @@ export const api = {
   deleteTransaction:  (id)        => req("DELETE", `/transactions/${id}`),
 
   // Cuentas
-  getCuentas:     ()      => req("GET",    "/cuentas"),
-  createCuenta:   (nombre)=> req("POST",   "/cuentas", { nombre }),
-  deleteCuenta:          (id)  => req("DELETE", `/cuentas/${id}`),
-  updateCuentaBalance:   (id, balance_actual) => req("PATCH", `/cuentas/${id}/balance`, { balance_actual }),
+  getCuentas:          ()                   => req("GET",    "/cuentas"),
+  createCuenta:        (nombre)             => req("POST",   "/cuentas", { nombre }),
+  deleteCuenta:        (id)                 => req("DELETE", `/cuentas/${id}`),
+  updateCuentaBalance: (id, balance_actual) => req("PATCH",  `/cuentas/${id}/balance`, { balance_actual }),
 
   // Dashboard
-  getDashboard:        ()        => req("GET", "/dashboard"),
+  getDashboard:        ()       => req("GET", "/dashboard"),
   getDashboardSummary: (params) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
     return req("GET", "/dashboard/summary" + qs);
   },
-  updateConfig:   (data)  => req("PUT", "/dashboard/config", data),
+  updateConfig:   (data) => req("PUT", "/dashboard/config", data),
 
   // Estimado
   createEstimado: (data)      => req("POST",   "/dashboard/estimado", data),
@@ -49,10 +63,10 @@ export const api = {
   deleteFondo: (id)       => req("DELETE", `/dashboard/fondos/${id}`),
 
   // Proyecciones
-  getProyecciones:    ()          => req("GET",    "/proyecciones"),
-  createProyeccion:   (data)      => req("POST",   "/proyecciones", data),
-  updateProyeccion:   (id, data)  => req("PUT",    `/proyecciones/${id}`, data),
-  deleteProyeccion:   (id)        => req("DELETE", `/proyecciones/${id}`),
+  getProyecciones:   ()          => req("GET",    "/proyecciones"),
+  createProyeccion:  (data)      => req("POST",   "/proyecciones", data),
+  updateProyeccion:  (id, data)  => req("PUT",    `/proyecciones/${id}`, data),
+  deleteProyeccion:  (id)        => req("DELETE", `/proyecciones/${id}`),
 
   // Obligaciones
   getObligaciones: (params) => {
@@ -65,7 +79,7 @@ export const api = {
   deleteObligacion:        (id)       => req("DELETE",`/obligaciones/${id}`),
   pagarObligacion:         (id, fecha_pago) => req("POST", `/obligaciones/${id}/pagar`, { fecha_pago }),
 
-  // Financial Settings (semáforo configurable)
+  // Settings
   getSettings:  ()     => req("GET", "/settings"),
   saveSettings: (data) => req("PUT", "/settings", data),
 };

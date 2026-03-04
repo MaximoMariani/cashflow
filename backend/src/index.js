@@ -29,12 +29,22 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/transactions",  transactionsRouter);
-app.use("/api/cuentas",       cuentasRouter);
-app.use("/api/dashboard",     dashboardRouter);
-app.use("/api/proyecciones",  proyeccionesRouter);
-app.use("/api/obligaciones",  obligacionesRouter);
-app.use("/api/settings",      settingsRouter);
+// ── Middleware: extrae user_id del header x-user-id ──────────────────────────
+// El frontend manda el Supabase UID en cada request.
+// Si no viene, se rechaza con 401.
+function requireUser(req, res, next) {
+  const userId = req.headers["x-user-id"];
+  if (!userId) return res.status(401).json({ error: "No autenticado" });
+  req.userId = userId;
+  next();
+}
+
+app.use("/api/transactions",  requireUser, transactionsRouter);
+app.use("/api/cuentas",       requireUser, cuentasRouter);
+app.use("/api/dashboard",     requireUser, dashboardRouter);
+app.use("/api/proyecciones",  requireUser, proyeccionesRouter);
+app.use("/api/obligaciones",  requireUser, obligacionesRouter);
+app.use("/api/settings",      requireUser, settingsRouter);
 
 const possibleDistPaths = [
   path.join(__dirname, "../../frontend/dist"),
