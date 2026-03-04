@@ -6,6 +6,7 @@ import { Spinner, ErrorBanner } from "./components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS } from "./lib/utils.js";
 import TxModal from "./components/TxModal.jsx";
 import LoginPage from "./components/LoginPage.jsx";
+import PaywallPage from "./components/PaywallPage.jsx";
 import { supabase } from "./lib/supabaseClient.js";
 
 import DashboardPage    from "./pages/DashboardPage.jsx";
@@ -65,6 +66,19 @@ function ThemeToggle({ theme, setTheme, compact = false }) {
 export default function App() {
   // Supabase session — undefined = cargando, null = sin sesión, string = logueado
   const [user, setUser] = useState(undefined);
+  const [hasAccess, setHasAccess] = useState(undefined); // undefined=cargando, true/false
+
+  const checkAccess = async (session) => {
+    if (!session) { setHasAccess(false); return; }
+    try {
+      const res = await fetch("/api/billing/status", {
+        headers: { "x-user-id": session.user.id }
+      });
+      if (res.status === 402) { setHasAccess(false); return; }
+      const data = await res.json();
+      setHasAccess(data.active === true);
+    } catch { setHasAccess(true); } // si falla la verificación, dejamos pasar
+  };
 
   useEffect(() => {
     // Recuperar sesión activa al cargar (persiste entre tabs/recargas)
@@ -73,22 +87,24 @@ export default function App() {
         const email = session.user.email;
         sessionStorage.setItem("cf_user", email);
         setUser(email);
+        checkAccess(session);
       } else {
-        // Fallback: si hay algo en sessionStorage (registro reciente sin confirmar)
         const saved = sessionStorage.getItem("cf_user");
         setUser(saved || null);
+        setHasAccess(false);
       }
     });
 
-    // Escuchar cambios: login, logout, refresh de token
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         const email = session.user.email;
         sessionStorage.setItem("cf_user", email);
         setUser(email);
+        checkAccess(session);
       } else {
         sessionStorage.removeItem("cf_user");
         setUser(null);
+        setHasAccess(false);
       }
     });
 
@@ -115,7 +131,6 @@ export default function App() {
     setUser(null);
   };
 
-  // Mientras se verifica la sesión, mostrar spinner
   if (user === undefined) return (
     <div style={{ minHeight: "100vh", background: "var(--cf-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Spinner />
@@ -123,6 +138,16 @@ export default function App() {
   );
 
   if (!user) return <LoginPage onLogin={setUser} />;
+
+  // Mientras verifica el acceso (billing)
+  if (hasAccess === undefined) return (
+    <div style={{ minHeight: "100vh", background: "var(--cf-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Spinner />
+    </div>
+  );
+
+  // Sin acceso → mostrar paywall
+  if (!hasAccess) return <PaywallPage onLogout={handleLogout} />;
 
   const navigate = (id) => { setView(id); setDrawerOpen(false); };
 
