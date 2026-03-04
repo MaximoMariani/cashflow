@@ -1,6 +1,126 @@
 import { useState, useEffect } from "react";
 import { Card, PageHeader } from "../components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS, iStyle, lStyle } from "../lib/utils.js";
+import { supabase } from "../lib/supabaseClient.js";
+
+// ── Tarjeta de suscripción ────────────────────────────────────────────────────
+function SubscriptionCard() {
+  const [status, setStatus]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [btnLoad, setBtnLoad] = useState(false);
+
+  useEffect(() => { fetchStatus(); }, []);
+
+  const fetchStatus = async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res  = await fetch("/api/billing/status", { headers: { "x-user-id": session.user.id } });
+      const data = await res.json();
+      setStatus(data);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  const handleCheckout = async () => {
+    setBtnLoad(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res  = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-user-id": session.user.id, "x-user-email": session.user.email },
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (e) { console.error(e); }
+    setBtnLoad(false);
+  };
+
+  const handlePortal = async () => {
+    setBtnLoad(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res  = await fetch("/api/billing/portal", { method: "POST", headers: { "x-user-id": session.user.id } });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch (e) { console.error(e); }
+    setBtnLoad(false);
+  };
+
+  const getDiasRestantes = () => {
+    if (!status?.trialEndsAt) return 0;
+    const diff = new Date(status.trialEndsAt) - new Date();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
+
+  const planColors = {
+    active:    { bg: "rgba(74,222,128,0.06)", border: "#4ade8033", badge: "#4ade80", label: "PRO ACTIVO" },
+    trial:     { bg: "rgba(250,204,21,0.06)",  border: "#facc1533", badge: "#facc15", label: "TRIAL" },
+    cancelled: { bg: "rgba(248,113,113,0.06)", border: "#f8717133", badge: "#f87171", label: "CANCELADO" },
+    past_due:  { bg: "rgba(248,113,113,0.06)", border: "#f8717133", badge: "#f87171", label: "PAGO FALLIDO" },
+  };
+  const colors = planColors[status?.status] || planColors.trial;
+
+  return (
+    <Card>
+      <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>
+        Mi suscripción
+      </div>
+
+      {loading ? (
+        <div style={{ color: "var(--cf-text-dim)", fontSize: 13 }}>Cargando...</div>
+      ) : (
+        <>
+          {/* Badge de plan */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "14px 16px", background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 10 }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: colors.badge, boxShadow: `0 0 8px ${colors.badge}`, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: colors.badge, letterSpacing: "0.08em" }}>{colors.label}</div>
+              <div style={{ fontSize: 11, color: "var(--cf-text-dim)", marginTop: 2 }}>
+                {status?.status === "active"    && "Suscripción mensual activa — ARS 33.999/mes"}
+                {status?.status === "trial"     && `Trial — quedan ${getDiasRestantes()} día${getDiasRestantes() !== 1 ? "s" : ""}`}
+                {status?.status === "cancelled" && "Suscripción cancelada"}
+                {status?.status === "past_due"  && "Problema con el último pago"}
+              </div>
+            </div>
+          </div>
+
+          {/* Info extra */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+            {status?.status === "trial" && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
+                <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>Días de trial restantes</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cf-text)", fontFamily: "'DM Mono',monospace" }}>{getDiasRestantes()}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>Plan</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cf-text)" }}>{status?.plan === "pro" ? "Pro" : "Free / Trial"}</span>
+            </div>
+            {status?.status === "active" && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
+                <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>Precio</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cf-text)", fontFamily: "'DM Mono',monospace" }}>ARS 33.999/mes</span>
+              </div>
+            )}
+          </div>
+
+          {/* Botón acción */}
+          {status?.status === "active" ? (
+            <button onClick={handlePortal} disabled={btnLoad} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "1px solid var(--cf-border-mid)", background: "transparent", color: "var(--cf-text-faint)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              {btnLoad ? "Abriendo portal..." : "Gestionar / Cancelar suscripción"}
+            </button>
+          ) : (
+            <button onClick={handleCheckout} disabled={btnLoad} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "none", background: "var(--cf-text)", color: "var(--cf-bg)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              {btnLoad ? "Redirigiendo..." : status?.status === "trial" ? "Activar Plan Pro — ARS 33.999/mes" : "Reactivar suscripción"}
+            </button>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
 
 // ── Preview del semáforo ──────────────────────────────────────────────────────
 function SemaforoPreview({ verde, amarillo }) {
@@ -84,7 +204,6 @@ export default function ConfigPage({ data }) {
 
         {/* ── Panel principal ────────────────────────────────────────────── */}
         <Card>
-          {/* Header de sección */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 10, color: "var(--cf-text-dim)", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>
               Parámetros financieros
@@ -236,6 +355,9 @@ export default function ConfigPage({ data }) {
               Si no configuraste valores, el sistema usa los defaults: Verde ≥ $1M, Amarillo ≥ $200K.
             </div>
           </div>
+
+          {/* Suscripción */}
+          <SubscriptionCard />
         </div>
       </div>
     </div>
