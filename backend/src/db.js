@@ -92,6 +92,25 @@ async function initDB() {
       );
     `);
 
+    // Migración: corregir UNIQUE en cuentas — de UNIQUE(nombre) a UNIQUE(user_id, nombre)
+    // Esto permite que dos usuarios distintos tengan una cuenta con el mismo nombre.
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'cuentas'::regclass AND contype = 'u' AND conname = 'cuentas_nombre_key'
+        ) THEN
+          ALTER TABLE cuentas DROP CONSTRAINT cuentas_nombre_key;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'cuentas'::regclass AND contype = 'u' AND conname = 'cuentas_user_id_nombre_key'
+        ) THEN
+          ALTER TABLE cuentas ADD CONSTRAINT cuentas_user_id_nombre_key UNIQUE(user_id, nombre);
+        END IF;
+      END$$;
+    `);
+
     // Migraciones: agregar user_id a tablas existentes que no lo tienen
     await client.query(`
       DO $$ BEGIN
