@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useData } from "./hooks/useData.js";
 import { useIsMobile } from "./hooks/useIsMobile.js";
 import { useTheme } from "./hooks/useTheme.js";
@@ -6,6 +6,7 @@ import { Spinner, ErrorBanner } from "./components/UI.jsx";
 import { fmt, getSemaforo, SEMAFORO_COLORS } from "./lib/utils.js";
 import TxModal from "./components/TxModal.jsx";
 import LoginPage from "./components/LoginPage.jsx";
+import { supabase } from "./lib/supabaseClient.js";
 
 import DashboardPage    from "./pages/DashboardPage.jsx";
 import MovimientosPage  from "./pages/MovimientosPage.jsx";
@@ -62,9 +63,39 @@ function ThemeToggle({ theme, setTheme, compact = false }) {
 }
 
 export default function App() {
-  const savedUser = sessionStorage.getItem("cf_user");
-  const [user, setUser]             = useState(savedUser || null);
-  const data                        = useData();
+  // Supabase session — undefined = cargando, null = sin sesión, string = logueado
+  const [user, setUser] = useState(undefined);
+
+  useEffect(() => {
+    // Recuperar sesión activa al cargar (persiste entre tabs/recargas)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        const email = session.user.email;
+        sessionStorage.setItem("cf_user", email);
+        setUser(email);
+      } else {
+        // Fallback: si hay algo en sessionStorage (registro reciente sin confirmar)
+        const saved = sessionStorage.getItem("cf_user");
+        setUser(saved || null);
+      }
+    });
+
+    // Escuchar cambios: login, logout, refresh de token
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        const email = session.user.email;
+        sessionStorage.setItem("cf_user", email);
+        setUser(email);
+      } else {
+        sessionStorage.removeItem("cf_user");
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const data = useData();
   const [view, setView]             = useState("dashboard");
   const [showGlobalAdd, setShowGlobalAdd] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -78,7 +109,19 @@ export default function App() {
   const umbralAmarillo = parseFloat(financialSettings?.umbral_amarillo ?? 200000);
   const semaforo       = getSemaforo(saldo, umbralVerde, umbralAmarillo);
 
-  const handleLogout = () => { sessionStorage.removeItem("cf_user"); setUser(null); };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    sessionStorage.removeItem("cf_user");
+    setUser(null);
+  };
+
+  // Mientras se verifica la sesión, mostrar spinner
+  if (user === undefined) return (
+    <div style={{ minHeight: "100vh", background: "var(--cf-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Spinner />
+    </div>
+  );
+
   if (!user) return <LoginPage onLogin={setUser} />;
 
   const navigate = (id) => { setView(id); setDrawerOpen(false); };
