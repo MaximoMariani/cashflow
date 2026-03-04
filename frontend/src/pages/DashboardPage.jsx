@@ -173,6 +173,7 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
     obligacionesTotales   = 0,
     liquidezActual        = 0,
     liquidezConObligaciones = 0,
+    liquidezFuturaProbable  = 0,
     periodo               = { inicio: "", fin: "", label: "Mes actual" },
   } = dashboardSummary || {};
 
@@ -259,10 +260,10 @@ export default function DashboardPage({ data, onAdd, onGoEscenarios }) {
       color: "var(--cf-negative)",
     },
     {
-      label: "Ingresos Probables",
-      value: ingresosProbables,
-      sub: "Movimientos + Escenarios probables",
-      color: "var(--cf-warning)",
+      label: "Liquidez Futura Probable",
+      value: liquidezFuturaProbable,
+      sub: "Ing. conf. + Ing. prob. − Egr. conf. − Obligaciones",
+      color: liquidezFuturaProbable >= 0 ? "var(--cf-warning)" : "var(--cf-negative)",
     },
   ];
 

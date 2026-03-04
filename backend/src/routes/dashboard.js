@@ -45,8 +45,9 @@ router.get("/summary", async (req, res) => {
     const obligacionesTotales = toNum(q3.rows[0].obligaciones_totales);
     const liquidezActual          = ingresosConfirmados - egresosConfirmados;
     const liquidezConObligaciones = ingresosConfirmados - egresosConfirmados - obligacionesTotales;
+    const liquidezFuturaProbable  = ingresosConfirmados + ingresosProbables - egresosConfirmados - obligacionesTotales;
 
-    res.json({ periodo: { inicio, fin, label: "Mes actual" }, ingresosConfirmados, egresosConfirmados, ingresosProbables, obligacionesTotales, liquidezActual, liquidezConObligaciones });
+    res.json({ periodo: { inicio, fin, label: "Mes actual" }, ingresosConfirmados, egresosConfirmados, ingresosProbables, obligacionesTotales, liquidezActual, liquidezConObligaciones, liquidezFuturaProbable });
   } catch (err) { console.error("[GET /dashboard/summary]", err.message); res.status(500).json({ error: err.message }); }
 });
 
