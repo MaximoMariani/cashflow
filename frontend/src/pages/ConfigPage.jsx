@@ -48,11 +48,15 @@ function SubscriptionCard() {
     setBtnLoad(false);
   };
 
-  const getDiasRestantes = () => {
-    if (!status?.trialEndsAt) return 0;
-    const diff = new Date(status.trialEndsAt) - new Date();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  const getTiempoRestante = () => {
+    if (!status?.trialEndsAt) return { horas: 0, dias: 0, label: "0 horas" };
+    const diff = Math.max(0, new Date(status.trialEndsAt) - new Date());
+    const horas = Math.ceil(diff / (1000 * 60 * 60));
+    const dias  = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    if (horas <= 24) return { horas, dias, label: `${horas} hora${horas !== 1 ? "s" : ""}` };
+    return { horas, dias, label: `${dias} día${dias !== 1 ? "s" : ""}` };
   };
+  const tiempoRestante = getTiempoRestante();
 
   const planColors = {
     active:    { bg: "rgba(74,222,128,0.06)", border: "#4ade8033", badge: "#4ade80", label: "PRO ACTIVO" },
@@ -79,7 +83,7 @@ function SubscriptionCard() {
               <div style={{ fontSize: 12, fontWeight: 700, color: colors.badge, letterSpacing: "0.08em" }}>{colors.label}</div>
               <div style={{ fontSize: 11, color: "var(--cf-text-dim)", marginTop: 2 }}>
                 {status?.status === "active"    && "Suscripción mensual activa — ARS 33.999/mes"}
-                {status?.status === "trial"     && `Trial — quedan ${getDiasRestantes()} día${getDiasRestantes() !== 1 ? "s" : ""}`}
+                {status?.status === "trial"     && `Trial — quedan ${tiempoRestante.label}`}
                 {status?.status === "cancelled" && "Suscripción cancelada"}
                 {status?.status === "past_due"  && "Problema con el último pago"}
               </div>
@@ -90,8 +94,8 @@ function SubscriptionCard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
             {status?.status === "trial" && (
               <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
-                <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>Días de trial restantes</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cf-text)", fontFamily: "'DM Mono',monospace" }}>{getDiasRestantes()}</span>
+                <span style={{ fontSize: 12, color: "var(--cf-text-faint)" }}>Tiempo de trial restante</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cf-text)", fontFamily: "'DM Mono',monospace" }}>{tiempoRestante.label}</span>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--cf-card-raised)", borderRadius: 8 }}>
